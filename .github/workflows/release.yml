@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: app
+        shell: pwsh
+    env:
+      JOT_NO_DOTENV: '1'
+      JOT_RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm version:check --tag "$env:JOT_RELEASE_TAG"
+      - run: pnpm licenses:check
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test:release
+      - run: pnpm app:dist
+      - run: pnpm test:packed open-source-release.spec.ts
+      - run: pnpm release:artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jot-windows-x64-release
+          path: app/dist/release/
+          if-no-files-found: error
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          prerelease: ${{ startsWith(github.ref_name, 'v0.') || contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            app/dist/release/Jot-*-windows-x64-setup.exe
+            app/dist/release/Jot-*-windows-x64.zip
+            app/dist/release/SHA256SUMS.txt

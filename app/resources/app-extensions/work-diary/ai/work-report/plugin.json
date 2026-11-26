@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "work-report",
+  "name": "工作报告",
+  "description": "从工作草稿和工程日志整理日报，汇总周报、月报及 OKR 进展。",
+  "agents": [],
+  "skills": ["work-report"],
+  "requiredTools": ["read", "find_files", "list_directory", "app_help", "app_manage"]
+}

@@ -1,0 +1,43 @@
+# 架构和存储
+
+Jot 使用 Electron 主进程提供文件与应用服务，Vue 3 界面通过限定 IPC 调用服务；共享 TypeScript 契约位于 `app/shared/`。模型能力通过 Pi SDK 接入，Jot 自己管理文件工具、任务和会话持久化。
+
+## 数据职责
+
+```text
+笔记库/
+  content/                 用户管理的内容目录和附件
+  ideas/YYYY/MM/           无需正式归档的灵感记录
+  inbox/YYYY/MM/           等待归档的笔记和附件
+  journal/YYYY/MM/         日总结
+  wiki/sources/YYYY/MM/    附件派生摘要
+  templates/               用户模板
+  .jot/
+    config.json            库配置
+    assistant.json         AI 能力配置
+    skills/                库内独立技能
+    plugins/               库内 AI 插件
+    app-extensions/        库内应用插件
+    trash/                 应用回收项
+    state.db               会话、任务等应用状态
+    index.db               可重建索引
+```
+
+文件和相对路径是内容权威，属性位于 Markdown frontmatter 或附件旁置文件。会话和任务属于应用状态，单靠 Markdown 无法恢复这些记录。
+
+监听器按实际文件变化更新索引；启动同步和重建索引用于校准，不用数据库身份阻止普通编辑。时间线依据发生时间、记录及更新等可用信息汇总；文件时间不表示精确的逐段编辑历史。
+
+全局模型与窗口偏好位于 Electron `userData`，默认 `%APPDATA%/jot`，不放安装目录或笔记正文。密钥只通过系统加密保存；设置持久化成功后才替换内存状态并通知订阅方。
+
+## 能力与执行
+
+- `app/electron/agent/`：上下文、技能加载、Pi 宿主、文件工具、应用操作、压缩和执行记录。
+- `app/electron/vault/`：库文件、属性、路径、包资源和文件监听。
+- `app/electron/extensions/`：声明式应用插件、入口配置和命令执行。
+- `app/electron/core.ts`：组合应用服务及 IPC 对应业务入口。
+- `app/src/`：内容库、编辑器、时间线、助手、能力管理与设置。
+- `app/resources/`：随发行版提供的 AI 包、应用插件和图标。
+
+默认通用助手发现当前启用且依赖齐全的技能与工具。技能只提供指令，不凭声明新增可执行工具。通用文件工具使用统一路径解析，默认库内，也允许用户明确指定的库外绝对路径。
+
+聊天采用主进程事件持续反馈工具和回答状态；模型侧使用 OpenAI 兼容流式请求。会话持久化由 Jot 的状态数据库承担，Pi 的 session 使用内存模式。后台分类、摘要、日总结和同义分析共用模型宿主，但只处理任务提供的材料，不取得交互助手的全套工具。

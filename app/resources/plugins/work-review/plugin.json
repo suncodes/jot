@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "work-review",
+  "name": "工作回顾",
+  "description": "根据库内记录整理周报及项目进展。",
+  "agents": [],
+  "skills": [
+    "weekly-report",
+    "project-progress"
+  ]
+}

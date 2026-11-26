@@ -1,0 +1,11 @@
+Jot
+Copyright 2026 Jot contributors
+
+Jot's original source code, documentation, and bundled capability instructions
+are licensed under the Apache License, Version 2.0.
+
+Third-party components retain their respective licenses and copyright notices.
+See THIRD_PARTY_NOTICES.md and licenses/THIRD_PARTY_LICENSES.txt.
+
+The distributed Electron runtime also includes LICENSE.electron.txt and
+LICENSES.chromium.html. Keep those files with redistributed Windows packages.

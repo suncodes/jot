@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "apiVersion": 1,
+  "id": "personal-diary",
+  "name": "个人日记",
+  "version": "1.0.0",
+  "description": "创建或打开今天的个人日记，记录生活和收获。",
+  "minAppVersion": "0.1.0",
+  "commands": [
+    {
+      "id": "today",
+      "name": "写今日个人日记",
+      "icon": "book-open",
+      "action": "daily-note",
+      "defaults": {
+        "directory": null,
+        "filename": "{{yyyy}}-{{MM}}-{{dd}}.md",
+        "template": { "kind": "package", "path": "templates/default.md" }
+      }
+    }
+  ]
+}

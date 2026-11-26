@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "jot-productivity",
+  "name": "助手实用",
+  "description": "本地材料简报、知识梳理和技能管理指引。",
+  "agents": [],
+  "skills": ["skill-manager", "research-brief", "knowledge-organize"]
+}

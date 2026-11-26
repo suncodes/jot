@@ -1,0 +1,331 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import type { Page, ElectronApplication } from '@playwright/test'
+import { test, expect, callOnPage } from './file-fixture'
+import { launch, shot } from './helpers'
+import { workDiaryOptions } from '../helpers/app-extension'
+
+const work = 'extension:work-diary:today:today', personal = 'extension:personal-diary:today:today'
+const rail = (page: Page, id: string) => page.locator('[data-testid="quick-command"][data-command="' + id + '"]')
+const paletteRow = (page: Page, id: string) => page.locator('[data-testid="palette-command"][data-command="' + id + '"]')
+async function install(page: Page, id: string, name: string, hotkey: string): Promise<void> {
+  const preview = await callOnPage(page, 'extensions:previewImport', { source: { kind: 'bundled', id } })
+  await callOnPage(page, 'extensions:confirmImport', { token: preview!.token })
+  await callOnPage(page, 'extensions:saveProfile', { id, profile: { id: 'today', commandId: 'today', name,
+    options: id === 'work-diary' ? workDiaryOptions('content/工作/X5虚构日记/' + id) : { directory: 'content/工作/X5虚构日记/' + id + '/{{yyyy}}年/{{MM}}月', filename: '{{yyyy}}-{{MM}}-{{dd}}.md', template: { kind: 'package', path: 'templates/default.md' } } },
+    shortcut: { pinned: true, hotkey } })
+  await callOnPage(page, 'extensions:setEnabled', { id, enabled: true })
+  await expect(rail(page, 'extension:' + id + ':today:today')).toBeVisible()
+}
+async function context(page: Page, id: string, action: string): Promise<void> {
+  await rail(page, id).click({ button: 'right' })
+  await page.getByTestId('quick-action-' + action).click()
+}
+async function settings(page: Page, section: string): Promise<void> {
+  if (!(await page.getByTestId('settings-sidebar').isVisible())) await page.getByTestId('ribbon-settings').click()
+  await page.getByTestId('settings-nav-' + section).click()
+}
+async function counter(app: ElectronApplication): Promise<void> {
+  await app.evaluate(({ ipcMain }) => {
+    const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (event: unknown, args: { id: string }) => Promise<unknown>> })._invokeHandlers
+    const original = handlers.get('commands:execute')!
+    ;(globalThis as unknown as { x5Calls: string[] }).x5Calls = []
+    ipcMain.removeHandler('commands:execute')
+    ipcMain.handle('commands:execute', (event, args: { id: string }) => {
+      ;(globalThis as unknown as { x5Calls: string[] }).x5Calls.push(args.id)
+      return original(event, args)
+    })
+  })
+}
+const calls = (app: ElectronApplication, id: string) => app.evaluate((_electron, key) => (globalThis as unknown as { x5Calls: string[] }).x5Calls.filter(value => value === key).length, id)
+
+test('X5：空栏释放宽度，命令面板独立筛选、键盘操作、固定与文件快开', async ({ jot }) => {
+  const { page, call } = jot
+  await expect(page.getByTestId('quick-rail')).toHaveCount(0)
+  expect((await page.getByTestId('side-panel').boundingBox())!.x).toBe(16)
+  await page.getByTestId('tools-open').click()
+  await page.getByTestId('ribbon-command-palette').click()
+  await expect(page.getByRole('dialog', { name: '命令面板', exact: true })).toBeVisible()
+  await expect(page.getByTestId('palette-command')).toHaveCount(3)
+  await expect(paletteRow(page, 'core.new-note').locator('kbd')).toHaveCount(0)
+  const query = page.getByTestId('command-search')
+  await query.fill('不存在的命令')
+  await expect(page.getByTestId('command-empty')).toBeVisible()
+  await query.press('Enter')
+  await expect(page.getByTestId('command-palette')).toBeVisible()
+  await query.fill('主题')
+  await page.getByTestId('palette-pin').click()
+  expect((await call('shortcuts:get', undefined)).pinned).toEqual(['core.theme'])
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('command-palette')).toHaveCount(0)
+  await expect(rail(page, 'core.theme')).toBeVisible()
+  await page.getByTestId('capture-input').focus()
+  await page.keyboard.press('Control+Shift+p')
+  await expect(query).toBeFocused()
+  await query.press('ArrowUp')
+  await expect(page.getByTestId('palette-run').last()).toHaveAttribute('aria-selected', 'true')
+  await query.press('ArrowDown')
+  await expect(page.getByTestId('palette-run').first()).toHaveAttribute('aria-selected', 'true')
+  await query.fill('主题')
+  const before = (await call('settings:get', undefined)).appearance.theme
+  await query.press('Enter')
+  await expect(page.getByTestId('command-palette')).toHaveCount(0)
+  expect((await call('settings:get', undefined)).appearance.theme).not.toBe(before)
+  await page.getByTestId('capture-input').focus()
+  await page.keyboard.press('Control+Shift+p')
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('capture-input')).toBeFocused()
+  await page.keyboard.press('Control+o')
+  await expect(page.getByTestId('quick-open')).toBeVisible()
+  await expect(page.getByTestId('command-palette')).toHaveCount(0)
+  await page.keyboard.press('Control+Shift+p')
+  await expect(page.getByTestId('command-palette')).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await context(page, 'core.theme', 'unpin')
+  await expect(page.getByTestId('quick-rail')).toHaveCount(0)
+  expect((await page.getByTestId('side-panel').boundingBox())!.x).toBe(16)
+  await page.keyboard.press('Control+Shift+p')
+  await page.getByTestId('palette-manage').click()
+  await expect(page.getByTestId('settings-shortcuts')).toBeVisible()
+  expect((await call('app:status', undefined)).modelState).toBe('not-configured')
+})
+
+test('X5：快捷栏、面板和按键创建或打开同一篇日记，保留原件和编辑草稿', async ({ jot }) => {
+  const { page, call, vault, launched } = jot
+  await install(page, 'work-diary', 'X5工作日记', 'Ctrl+Shift+D')
+  await rail(page, work).getByRole('button').click()
+  const target = (await call('extensions:previewWorkReport', workDiaryOptions('content/工作/X5虚构日记/work-diary'))).dailyDraft
+  await expect(page.locator('[data-testid="doc-view"]:visible')).toHaveAttribute('data-path', target.path)
+  const original = fs.readFileSync(path.join(vault, target.path), 'utf8')
+  await launched.app.evaluate(({ ipcMain }) => {
+    const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (event: unknown, args: unknown) => Promise<unknown>> })._invokeHandlers
+    const original = handlers.get('doc:saveBody')!
+    ;(globalThis as unknown as { x5Restore: () => void }).x5Restore = () => { ipcMain.removeHandler('doc:saveBody'); ipcMain.handle('doc:saveBody', original) }
+    ipcMain.removeHandler('doc:saveBody')
+    ipcMain.handle('doc:saveBody', () => ({ ok: false, error: { code: 'IO_ERROR', message: 'X5虚构草稿暂未保存' } }))
+  })
+  const editor = page.locator('[data-testid="doc-view"]:visible .cm-content')
+  await editor.fill('X5尚未保存的原篇草稿')
+  await editor.evaluate(element => { (element as HTMLElement).dataset.x5State = 'retained' })
+  await page.keyboard.press('Control+Shift+p')
+  await page.getByTestId('command-search').fill('X5工作日记')
+  await page.keyboard.press('Enter')
+  await expect(editor).toContainText('X5尚未保存的原篇草稿')
+  await page.getByTestId('capture-input').focus()
+  await page.keyboard.press('Control+Shift+d')
+  await expect(page.locator('[data-testid="tab"][data-path="' + target.path + '"]')).toHaveCount(1)
+  await expect(editor).toHaveAttribute('data-x5-state', 'retained')
+  expect(fs.readFileSync(path.join(vault, target.path), 'utf8')).toBe(original)
+  await launched.app.evaluate(() => (globalThis as unknown as { x5Restore: () => void }).x5Restore())
+  await editor.focus()
+  await page.keyboard.press('Control+e')
+  await expect.poll(() => fs.readFileSync(path.join(vault, target.path), 'utf8')).toContain('X5尚未保存的原篇草稿')
+  await page.getByTestId('quick-palette').click()
+  await page.getByTestId('command-search').fill('X5工作日记')
+  await page.getByTestId('palette-run').click()
+  await expect(page.locator('[data-testid="tab"][data-path="' + target.path + '"]')).toHaveCount(1)
+  expect(fs.readdirSync(path.join(vault, target.directory)).filter(name => name.endsWith('.md'))).toHaveLength(1)
+})
+
+test('X5：36px快捷栏与224px侧栏独立，提示、右键排序、收起和深浅窄窗', async ({ jot }) => {
+  const { page, call } = jot
+  await install(page, 'work-diary', 'X5工作日记', 'Ctrl+Shift+D')
+  await install(page, 'personal-diary', 'X5个人日记', 'Ctrl+Shift+I')
+  const bar = page.getByTestId('quick-rail'), button = rail(page, work).getByRole('button')
+  expect((await bar.boundingBox())!.width).toBe(36)
+  expect((await page.getByTestId('side-panel').boundingBox())!.width).toBe(224)
+  expect((await bar.boundingBox())!.x).toBe(0)
+  expect((await page.getByTestId('side-panel').boundingBox())!.x).toBe(48)
+  expect((await button.boundingBox())!.width).toBe(32)
+  expect((await button.locator('svg').boundingBox())!.width).toBe(18)
+  expect(await button.evaluate(element => getComputedStyle(element).opacity)).toBe('1')
+  await button.hover()
+  await expect(page.getByTestId('quick-tooltip')).toContainText('X5工作日记')
+  await expect(page.getByTestId('quick-tooltip')).toContainText('Ctrl+Shift+D')
+  await button.focus()
+  await page.keyboard.press('Tab')
+  await page.keyboard.press('Shift+Tab')
+  await expect(button).toBeFocused()
+  expect(await button.evaluate(element => getComputedStyle(element).outlineOffset)).toBe('-2px')
+  await page.keyboard.press('Shift+F10')
+  await expect(page.getByTestId('quick-command-menu')).toBeVisible()
+  await page.getByTestId('quick-action-down').click()
+  await expect.poll(() => page.getByTestId('quick-command').evaluateAll(elements => elements.map(element => element.getAttribute('data-command')))).toEqual([personal, work])
+  await shot(page, 'quick-rail-compact-light-1440')
+  await page.getByTestId('side-toggle').click()
+  await expect(page.getByTestId('side-panel')).toBeHidden()
+  await expect(bar).toBeVisible()
+  await page.getByTestId('ribbon-capabilities').click()
+  await expect(bar).toBeVisible()
+  await settings(page, 'shortcuts')
+  expect((await page.getByTestId('side-panel').boundingBox())!.width).toBe(224)
+  await call('settings:set', { appearance: { theme: 'dark' } })
+  await page.setViewportSize({ width: 740, height: 820 })
+  expect((await page.getByTestId('side-panel').boundingBox())!.width).toBe(224)
+  expect((await bar.boundingBox())!.width).toBe(36)
+  await page.getByTestId('quick-palette').click()
+  await page.getByTestId('command-search').fill('日记')
+  expect((await page.getByRole('dialog', { name: '命令面板', exact: true }).boundingBox())!.width).toBe(620)
+  expect(await page.locator('.palette-search').evaluate(element => getComputedStyle(element).display)).toBe('flex')
+  await shot(page, 'quick-rail-compact-dark-740')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.keyboard.press('Escape')
+  await context(page, personal, 'unpin')
+  await expect(rail(page, personal)).toHaveCount(0)
+  expect((await call('shortcuts:get', undefined)).pinned).toEqual([work])
+})
+
+test('X5：右键精确配置入口，保留模型与日记草稿，切目标需明确放弃', async ({ jot }) => {
+  const { page, call } = jot
+  await install(page, 'work-diary', 'X5工作日记', 'Ctrl+Shift+D')
+  await install(page, 'personal-diary', 'X5个人日记', 'Ctrl+Shift+I')
+  await settings(page, 'model')
+  await page.getByTestId('model-name').fill('X5未保存模型草稿')
+  await context(page, work, 'configure')
+  await expect(page.getByTestId('profile-name')).toHaveValue('X5工作日记')
+  await page.getByTestId('profile-name').fill('X5工作未保存草稿')
+  await page.getByTestId('settings-nav-capture').click()
+  await context(page, work, 'configure')
+  await expect(page.getByTestId('profile-name')).toHaveValue('X5工作未保存草稿')
+  await context(page, personal, 'configure')
+  await expect(page.getByRole('dialog', { name: '放弃未保存的配置？' })).toBeVisible()
+  await page.getByRole('button', { name: '继续编辑', exact: true }).click()
+  await expect(page.getByTestId('profile-name')).toHaveValue('X5工作未保存草稿')
+  await context(page, personal, 'configure')
+  await page.getByTestId('profile-discard').click()
+  await expect(page.getByTestId('profile-name')).toHaveValue('X5个人日记')
+  await page.getByTestId('settings-nav-model').click()
+  await expect(page.getByTestId('model-name')).toHaveValue('X5未保存模型草稿')
+  expect((await call('settings:get', undefined)).model.model).toBe('')
+})
+
+test('X5：改名标识稳定，停用撤销三个入口，启用及重启恢复，卸载不影响另一包', async ({ jot }) => {
+  const { page, call, launched, vault } = jot
+  await install(page, 'work-diary', 'X5工作日记', 'Ctrl+Shift+D')
+  await install(page, 'personal-diary', 'X5个人日记', 'Ctrl+Shift+I')
+  const config = (await call('extensions:configuration', undefined)).extensions['work-diary']!.profiles[0]!
+  await call('extensions:saveProfile', { id: 'work-diary', profile: { ...config, name: 'X5改名后日记' } })
+  await expect(rail(page, work).getByRole('button')).toHaveAttribute('aria-label', 'X5改名后日记')
+  const shortcuts = await call('shortcuts:get', undefined)
+  await call('extensions:setEnabled', { id: 'work-diary', enabled: false })
+  await expect(rail(page, work)).toHaveCount(0)
+  await counter(launched.app)
+  await page.getByTestId('capture-input').focus()
+  await page.keyboard.press('Control+Shift+d')
+  expect(await calls(launched.app, work)).toBe(0)
+  await page.keyboard.press('Control+Shift+p')
+  await expect(paletteRow(page, work)).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  expect(await call('shortcuts:get', undefined)).toEqual(shortcuts)
+  await call('extensions:setEnabled', { id: 'work-diary', enabled: true })
+  await expect(rail(page, work)).toBeVisible()
+  await rail(page, personal).getByRole('button').click()
+  const note = await call('commands:execute', { id: personal })
+  if (note.kind !== 'open-note') throw new Error('结果不符')
+  const original = fs.readFileSync(path.join(vault, note.path), 'utf8')
+  await call('extensions:uninstall', { id: 'personal-diary', confirmed: true })
+  await expect(rail(page, personal)).toHaveCount(0)
+  await expect(rail(page, work)).toBeVisible()
+  expect(fs.readFileSync(path.join(vault, note.path), 'utf8')).toBe(original)
+  expect((await call('shortcuts:get', undefined)).pinned).toEqual([work])
+  await call('vault:rebuildIndex', undefined)
+  await expect(rail(page, work)).toBeVisible()
+  await launched.close()
+  const restarted = await launch({ isolateHotkey: true, reuse: { userData: launched.userData, workDir: launched.workDir } })
+  try {
+    await expect(rail(restarted.page, work)).toBeVisible()
+    await restarted.page.getByTestId('capture-input').focus()
+    await restarted.page.keyboard.press('Control+Shift+d')
+    await expect(restarted.page.locator('[data-testid="doc-view"]:visible')).toBeVisible()
+    expect((await callOnPage(restarted.page, 'shortcuts:get', undefined)).bindings).toEqual([{ commandId: work, hotkey: 'Ctrl+Shift+D' }])
+  } finally { await restarted.close() }
+})
+
+test('X5：原生编辑、按键录入、弹窗、重复和输入法不误触发，失败可反馈与重试', async ({ jot }) => {
+  const { page, call, launched } = jot
+  await install(page, 'work-diary', 'X5工作日记', 'Ctrl+Shift+D')
+  await counter(launched.app)
+  await call('shortcuts:set', { schemaVersion: 1, pinned: [work], bindings: [{ commandId: work, hotkey: 'Ctrl+Shift+D' }, { commandId: 'core.theme', hotkey: 'Ctrl+Backspace' }] })
+  const capture = page.getByTestId('capture-input')
+  await capture.fill('X5输入保护')
+  await capture.press('Control+Backspace')
+  expect(await calls(launched.app, 'core.theme')).toBe(0)
+  await capture.evaluate(element => {
+    for (const options of [{ repeat: true }, { isComposing: true }, { keyCode: 229 }, { altKey: true }]) {
+      const event = new KeyboardEvent('keydown', { key: 'd', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true, ...options })
+      if ('altKey' in options) Object.defineProperty(event, 'getModifierState', { value: (key: string) => key === 'AltGraph' })
+      element.dispatchEvent(event)
+    }
+    const handled = new KeyboardEvent('keydown', { key: 'd', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true })
+    handled.preventDefault(); element.dispatchEvent(handled)
+  })
+  expect(await calls(launched.app, work)).toBe(0)
+  await page.keyboard.press('Control+Shift+p')
+  await page.getByTestId('command-search').press('Control+Shift+d')
+  expect(await calls(launched.app, work)).toBe(0)
+  await page.keyboard.press('Escape')
+  await context(page, work, 'configure')
+  await page.getByTestId('shortcut-record').click()
+  await page.keyboard.press('Control+Shift+d')
+  expect(await calls(launched.app, work)).toBe(0)
+  await page.getByTestId('settings-back').click()
+  await capture.focus()
+  await page.keyboard.press('Control+Shift+d')
+  await expect.poll(() => calls(launched.app, work)).toBe(1)
+  await expect(page.locator('[data-testid="doc-view"]:visible .cm-content')).toBeVisible()
+  const editor = page.locator('[data-testid="doc-view"]:visible .cm-content')
+  await editor.focus()
+  await page.keyboard.press('Control+Shift+d')
+  expect(await calls(launched.app, work)).toBe(1)
+  await call('shortcuts:set', { schemaVersion: 1, pinned: [work], bindings: [{ commandId: work, hotkey: 'Ctrl+Alt+D' }] })
+  await rail(page, work).hover()
+  await expect(page.getByTestId('quick-tooltip')).toContainText('Ctrl+Alt+D')
+  await editor.focus()
+  await page.keyboard.press('Control+Alt+d')
+  await expect.poll(() => calls(launched.app, work)).toBe(2)
+  await launched.app.evaluate(({ ipcMain }) => {
+    const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (event: unknown, args: { id: string }) => Promise<unknown>> })._invokeHandlers
+    const original = handlers.get('commands:execute')!
+    ipcMain.removeHandler('commands:execute')
+    ;(globalThis as unknown as { x5RestoreExecute: () => void }).x5RestoreExecute = () => { ipcMain.removeHandler('commands:execute'); ipcMain.handle('commands:execute', original) }
+    ipcMain.handle('commands:execute', (event, args: { id: string }) => args.id === 'extension:work-diary:today:today'
+      ? { ok: false, error: { code: 'IO_ERROR', message: 'X5虚构目录暂时不可写' } } : original(event, args))
+  })
+  await page.keyboard.press('Control+Shift+p')
+  await page.getByTestId('command-search').fill('X5工作日记')
+  await page.keyboard.press('Enter')
+  await expect(page.getByTestId('command-error')).toContainText('X5虚构目录暂时不可写')
+  await expect(page.getByTestId('toast').filter({ hasText: 'X5虚构目录暂时不可写' })).toBeVisible()
+  await launched.app.evaluate(() => (globalThis as unknown as { x5RestoreExecute: () => void }).x5RestoreExecute())
+  await page.getByTestId('palette-run').click()
+  await expect(page.getByTestId('command-palette')).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(rail(page, work)).toBeVisible()
+})
+
+test('X5：多入口滚动保留底部面板，排序跳过已隐藏的固定项', async ({ jot }) => {
+  const { page, call } = jot
+  await install(page, 'work-diary', 'X5工作日记', 'Ctrl+Shift+D')
+  await install(page, 'personal-diary', 'X5个人日记', 'Ctrl+Shift+I')
+  await call('shortcuts:set', { schemaVersion: 1, pinned: [work, personal, 'core.theme'], bindings: [] })
+  await call('extensions:setEnabled', { id: 'personal-diary', enabled: false })
+  await expect(rail(page, personal)).toHaveCount(0)
+  await context(page, work, 'down')
+  await expect.poll(() => page.getByTestId('quick-command').evaluateAll(elements => elements.map(element => element.getAttribute('data-command')))).toEqual(['core.theme', work])
+  const ids: string[] = []
+  for (let i = 0; i < 14; i++) {
+    const profile = await call('extensions:saveProfile', { id: 'work-diary', profile: { commandId: 'today', name: 'X5滚动入口' + i,
+      options: workDiaryOptions('content/工作/X5滚动', { filename: '{{dd}}-' + i + '.md', template: { kind: 'none' } }) } })
+    ids.push('extension:work-diary:' + profile.id + ':today')
+  }
+  await call('shortcuts:set', { schemaVersion: 1, pinned: ['core.theme', work, ...ids], bindings: [] })
+  await page.setViewportSize({ width: 740, height: 640 })
+  await expect(page.getByTestId('quick-command')).toHaveCount(16)
+  const area = page.locator('.rail-commands')
+  expect(await area.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true)
+  await rail(page, ids.at(-1)!).getByRole('button').focus()
+  await expect(rail(page, ids.at(-1)!)).toBeInViewport()
+  await expect(page.getByTestId('quick-palette')).toBeInViewport()
+  await page.getByTestId('quick-palette').click()
+  await expect(page.getByTestId('command-palette')).toBeVisible()
+})

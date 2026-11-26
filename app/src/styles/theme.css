@@ -1,0 +1,46 @@
+/* A「澄明」：与已确认原型共用视觉参数。 */
+:root {
+  --font-ui: 'Segoe UI Variable', 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'Cascadia Code', Consolas, 'Microsoft YaHei', monospace;
+  --font-size-small: 12px;
+  --font-size-ui: 14px;
+  --font-size-text: 15px;
+  --font-size-dialog-title: 18px;
+  --font-size-title: 28px;
+  --font-size-hero: 32px;
+  --font-size-date: 66px;
+  --line-height: 1.7;
+  --line-width: 800px;
+  --page-width: 1120px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 24px; --space-6: 32px; --space-7: 40px; --space-8: 48px;
+  --radius-s: 7px; --radius-m: 10px; --radius-l: 14px;
+  --topbar-height: 76px; --tabbar-height: 46px; --statusbar-height: 25px;
+  --control-height: 36px;
+  --dialog-width: 460px; --dialog-compact-width: 360px;
+  --ribbon-width: 0px; --icon-size: 18px;
+  --quick-rail-width: 36px; --command-button-size: 32px; --command-palette-width: 620px;
+  --side-width: 224px; --agent-width: 348px;
+  --on-accent: #fff;
+  --danger: #c9364b; --success: #357758; --warning: #95651e;
+  --shadow: 0 12px 50px rgb(42 34 72 / 0.09);
+  --overlay: rgb(20 22 36 / 0.25);
+}
+:root, :root[data-theme='light'] {
+  color-scheme: light;
+  --bg-primary: #fff; --bg-secondary: #f7f8fb; --bg-hover: #eeeff5; --bg-active: #e9eaf1;
+  --text-normal: #222633; --text-muted: #636979; --text-faint: #858b9c; --border: #e8eaf0;
+  --accent: #5046dc; --accent-hover: #4336bf; --accent-soft: #ecebfd; --accent-disabled: #a6a0eb; --accent-disabled-border: #d3cff5;
+  --canvas: #fbfcfe; --card: #fff; --surface-line: #eceef4;
+  --record-fg: #547164; --record-bg: #eef4f0; --file-fg: #5a687c; --file-bg: #eff2f7;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg-primary: #191b23; --bg-secondary: #13151b; --bg-hover: #262935; --bg-active: #2e3140;
+  --text-normal: #eff0f6; --text-muted: #aeb4c7; --text-faint: #8b92a8; --border: #2d303c;
+  --accent: #b4acff; --accent-hover: #c6bfff; --accent-soft: #302b50; --accent-disabled: #817ba9; --accent-disabled-border: #504b6b; --on-accent: #19142d;
+  --canvas: #161820; --card: #1e202a; --surface-line: #313542;
+  --record-fg: #a6d3b9; --record-bg: #263b32; --file-fg: #b7c6de; --file-bg: #293445;
+  --danger: #ff8a9a; --success: #84ceac; --warning: #e9c47e;
+  --shadow: 0 12px 50px rgb(0 0 0 / 0.28); --overlay: rgb(0 0 0 / 0.45);
+}

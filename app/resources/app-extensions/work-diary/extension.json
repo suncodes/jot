@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "apiVersion": 1,
+  "id": "work-diary",
+  "name": "工作日记",
+  "version": "1.0.0",
+  "description": "写当天工作草稿；当月草稿目录不存在时，初始化草稿与报告分类目录。",
+  "minAppVersion": "0.1.0",
+  "aiPlugin": { "path": "ai/work-report" },
+  "commands": [
+    {
+      "id": "today",
+      "name": "写今日工作日记",
+      "icon": "briefcase-business",
+      "action": "work-diary",
+      "defaults": {
+        "root": null,
+        "draftDirectory": "草稿/{{yyyy}}年{{MM}}月",
+        "reportDirectory": "AI总结/{{yyyy}}年{{MM}}月",
+        "worklogDirectory": null,
+        "filename": "{{yyyy}}-{{MM}}-{{dd}}.md",
+        "template": { "kind": "package", "path": "templates/default.md" },
+        "okrTemplate": { "kind": "package", "path": "templates/okr.md" }
+      }
+    }
+  ]
+}

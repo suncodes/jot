@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "jot-core",
+  "name": "笔记基础",
+  "description": "供通用助手和后台任务复用的基础做法。",
+  "agents": [],
+  "skills": ["daily-review", "source-summary", "content-organize", "term-organize"]
+}

@@ -1,0 +1,32 @@
+{
+  "standardwebhooks@1.1.1": {
+    "file": "upstream/standardwebhooks-LICENSE.txt",
+    "license": "MIT",
+    "source": "https://github.com/standard-webhooks/standard-webhooks/blob/b4d2c14fc5b4ccff3ff271e3b087dff812254c59/libraries/LICENSE",
+    "note": "Library license at the npm release gitHead; the protocol at repository root has a separate license."
+  },
+  "@aws-sdk/credential-provider-http@3.972.86": {
+    "file": "upstream/aws-sdk-LICENSE.txt",
+    "license": "Apache-2.0",
+    "source": "https://github.com/aws/aws-sdk-js-v3/blob/bc4f776516826288239de8a3a21200f886424319/LICENSE",
+    "note": "Shared repository license text; locked npm package metadata declares Apache-2.0."
+  },
+  "@aws-sdk/credential-provider-login@3.972.92": {
+    "file": "upstream/aws-sdk-LICENSE.txt",
+    "license": "Apache-2.0",
+    "source": "https://github.com/aws/aws-sdk-js-v3/blob/bc4f776516826288239de8a3a21200f886424319/LICENSE",
+    "note": "Shared repository license text; locked npm package metadata declares Apache-2.0."
+  },
+  "@aws-sdk/nested-clients@3.998.3": {
+    "file": "upstream/aws-sdk-LICENSE.txt",
+    "license": "Apache-2.0",
+    "source": "https://github.com/aws/aws-sdk-js-v3/blob/bc4f776516826288239de8a3a21200f886424319/LICENSE",
+    "note": "Shared repository license text; locked npm package metadata declares Apache-2.0."
+  },
+  "proxy-agent-negotiate@1.1.0": {
+    "file": "upstream/proxy-agents-LICENSE.txt",
+    "license": "MIT",
+    "source": "https://github.com/TooTallNate/proxy-agents/blob/890a2080267b35f5accfa3ee0edd165f158a3c4d/packages/proxy-agent/LICENSE",
+    "note": "Shared proxy-agents MIT license and author copyright; the locked package metadata declares MIT and Nathan Rajlich as author, but omits a license file."
+  }
+}

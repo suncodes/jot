@@ -1,0 +1,163 @@
+@import './theme.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-normal);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-ui);
+  line-height: var(--line-height);
+  overflow: hidden;
+  user-select: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--bg-secondary);
+  padding: var(--space-1) var(--space-3);
+}
+button:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+button:disabled {
+  cursor: default;
+  color: var(--text-faint);
+}
+button.primary {
+  background: var(--bg-primary);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+button.primary:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--accent-hover);
+  color: var(--accent-hover);
+}
+button.primary:disabled {
+  background: var(--bg-primary);
+  border-color: var(--accent-disabled-border);
+  color: var(--accent-disabled);
+}
+button.ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+input[type='text'],
+input[type='password'],
+input[type='number'],
+textarea,
+select {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  padding: var(--space-1) var(--space-2);
+  outline: none;
+  user-select: text;
+}
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent);
+}
+::placeholder {
+  color: var(--text-faint);
+}
+
+a {
+  color: var(--accent);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-active);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-faint);
+}
+
+.muted {
+  color: var(--text-muted);
+}
+.faint {
+  color: var(--text-faint);
+}
+.small {
+  font-size: var(--font-size-small);
+}
+.selectable {
+  user-select: text;
+}
+
+/* AI 生成内容的统一标识 */
+.ai-badge {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: var(--radius-s);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+button, input, select { transition: background-color .15s, color .15s, border-color .15s; }
+button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+button { min-height: 30px; }
+button.icon-button { display: inline-grid; place-items: center; padding: var(--space-2); }
+.page { max-width: var(--page-width); margin: 0 auto; padding: var(--space-5) var(--space-7) var(--space-7); }
+.type-badge { font-size: var(--font-size-small); line-height: 1.6; border-radius: var(--radius-s); padding: 2px var(--space-2); white-space: nowrap; }
+.type-record { background: var(--record-bg); color: var(--record-fg); }
+.type-note { background: var(--accent-soft); color: var(--accent); }
+.type-file { background: var(--file-bg); color: var(--file-fg); }
+.reading { max-width: var(--line-width); font-size: var(--font-size-text); line-height: 1.95; overflow-wrap: anywhere; }
+.reading h1 { font-size: var(--font-size-title); }
+.reading h2 { margin: var(--space-5) 0 var(--space-3); font-size: 1.15em; }
+.reading h3 { font-size: 1.05em; }
+.reading p { margin: 0 0 1em; }
+.reading pre { overflow: auto; padding: var(--space-4); background: var(--canvas); border-radius: var(--radius-m); }
+.reading code { font-family: var(--font-mono); background: var(--canvas); }
+.reading blockquote { margin: var(--space-5) 0; border-top: 1px solid var(--border); padding-top: var(--space-4); color: var(--text-muted); }
+.reading table { border-collapse: collapse; }
+.reading td, .reading th { border: 1px solid var(--border); padding: var(--space-2); }
+.reading img { max-width: 100%; }
+.reading a { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+@container content (max-width: 600px) { .page { padding: var(--space-5); } }
+
+/* 行操作只占一个固定位置，键盘和无悬停设备始终可达。 */
+[data-object-row] .object-more { opacity: 0; }
+[data-object-row]:hover .object-more,
+[data-object-row]:focus-within .object-more,
+[data-object-row][data-menu-open] .object-more,
+[data-object-row].selected .object-more,
+[data-object-row].active .object-more { opacity: 1; }
+[data-object-row][data-menu-open] { background: var(--bg-hover); }
+@media (hover: none) { [data-object-row] .object-more { opacity: 1; } }

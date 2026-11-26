@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: app
+        shell: pwsh
+    env:
+      JOT_NO_DOTENV: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm version:check
+      - run: pnpm licenses:check
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test:release
+      - run: pnpm app:dir
+      - run: pnpm test:packed open-source-release.spec.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jot-windows-x64-candidate
+          path: app/dist/win-unpacked/
+          if-no-files-found: error
+          retention-days: 7
