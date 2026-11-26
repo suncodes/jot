@@ -2,6 +2,7 @@ import type { ModelState, ModelTestResult } from '@shared/types'
 import type { ModelConfig } from '../env'
 import type { PiHost } from '../agent/pi'
 import { reasoningFailure } from '../agent/reasoning'
+import { DEFAULT_MODEL_PROTOCOL } from '@shared/model-protocol'
 
 /** 仅负责连接测试及可用状态；业务推理全部经AiExecutor/PiHost。 */
 export class ModelDiagnostics {
@@ -23,7 +24,8 @@ export class ModelDiagnostics {
   }
   report(config: ModelConfig, state: ModelState, message?: string): void {
     const current = this.getConfig()
-    if (current?.baseUrl === config.baseUrl && current.model === config.model && current.apiKey === config.apiKey) this.setState(state, message)
+    if (current?.baseUrl === config.baseUrl && current.model === config.model && current.apiKey === config.apiKey
+      && (current.protocol ?? DEFAULT_MODEL_PROTOCOL) === (config.protocol ?? DEFAULT_MODEL_PROTOCOL)) this.setState(state, message)
   }
   async test(pi: PiHost, cwd: string, override: Partial<ModelConfig> = {}): Promise<ModelTestResult> {
     const base = this.getConfig()

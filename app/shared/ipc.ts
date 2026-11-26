@@ -159,10 +159,10 @@ export interface IpcContract {
   'jobs:cancel': { args: { jobId: string }; result: void }
 
   'settings:get': { args: void; result: Settings }
-  'settings:reasoning': { args: { baseUrl: string; model: string }; result: ResolvedReasoning }
-  'settings:modelBudget': { args: { baseUrl: string; model: string; contextWindow?: number; compactionThreshold?: CompactionThreshold; reasoningEffort?: ReasoningEffort }; result: ResolvedModelBudget }
+  'settings:reasoning': { args: import('./model-protocol').ModelEndpoint; result: ResolvedReasoning }
+  'settings:modelBudget': { args: import('./model-protocol').ModelEndpoint & { contextWindow?: number; compactionThreshold?: CompactionThreshold; reasoningEffort?: ReasoningEffort }; result: ResolvedModelBudget }
   'settings:set': { args: SettingsInput; result: Settings }
-  'settings:testModel': { args: { baseUrl?: string; apiKey?: string; model?: string; reasoningEffort?: ReasoningEffort; contextWindow?: number; compactionThreshold?: CompactionThreshold }; result: ModelTestResult }
+  'settings:testModel': { args: { protocol?: import('./model-protocol').ModelProtocol; baseUrl?: string; apiKey?: string; model?: string; reasoningEffort?: ReasoningEffort; contextWindow?: number; compactionThreshold?: CompactionThreshold }; result: ModelTestResult }
 }
 
 export type Channel = keyof IpcContract

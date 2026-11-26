@@ -17,6 +17,24 @@ beforeEach(() => (tmp = makeTmpDir('settings')))
 afterEach(() => tmp.cleanup())
 
 describe('设置服务', () => {
+  it('协议跨重启保存，切换协议清除模型档位覆盖并通知模型变化，无效协议拒绝保存', async () => {
+    const service = new SettingsService(tmp.dir, secrets)
+    await service.load()
+    await service.set({ model: { baseUrl: 'https://example.invalid/v1', model: 'fixture', apiKey: 'fixture', contextWindow: 65536, reasoningEffort: 'high' } })
+    const changed: boolean[] = []
+    service.onChange((_settings, modelChanged) => changed.push(modelChanged))
+    await service.set({ model: { protocol: 'openai-responses' } })
+    expect(service.get().model).toMatchObject({ protocol: 'openai-responses', reasoningEffort: 'auto', hasApiKey: true })
+    expect(service.get().model).not.toHaveProperty('contextWindow')
+    expect(changed).toEqual([true])
+    const restarted = new SettingsService(tmp.dir, secrets)
+    await restarted.load()
+    expect(restarted.getModelConfig()?.protocol).toBe('openai-responses')
+    const before = restarted.get()
+    await expect(restarted.set({ model: { protocol: 'other' } as never })).rejects.toThrow('协议不受支持')
+    expect(restarted.get()).toEqual(before)
+  })
+
   it('同时修改库路径、模型和窗口偏好不会丢失更新，失败不会阻断后续保存', async () => {
     const service = new SettingsService(tmp.dir, secrets)
     await service.load()
@@ -133,7 +151,7 @@ describe('设置服务', () => {
     expect(v.window.closeBehavior).toBe('tray')
     expect(v.daily).toEqual({ enabled: true, time: '21:30' })
     expect(v.appearance.theme).toBe('system')
-    expect(v.model).toEqual({ baseUrl: '', model: '', hasApiKey: false, reasoningEffort: 'auto' })
+    expect(v.model).toEqual({ protocol: 'openai-completions', baseUrl: '', model: '', hasApiKey: false, reasoningEffort: 'auto' })
     expect(s.getModelConfig()).toBeNull()
   })
 
@@ -150,10 +168,10 @@ describe('设置服务', () => {
     const s = new SettingsService(tmp.dir, secrets)
     await s.load()
     const view = await s.set({ model: { baseUrl: 'http://x/v1', model: 'm', apiKey: 'sk-secret-123' } })
-    expect(view.model).toEqual({ baseUrl: 'http://x/v1', model: 'm', hasApiKey: true, reasoningEffort: 'auto' })
+    expect(view.model).toEqual({ protocol: 'openai-completions', baseUrl: 'http://x/v1', model: 'm', hasApiKey: true, reasoningEffort: 'auto' })
     expect(JSON.stringify(view)).not.toContain('sk-secret-123')
     expect(fs.readFileSync(path.join(tmp.dir, 'settings.json'), 'utf8')).not.toContain('sk-secret-123')
-    expect(s.getModelConfig()).toEqual({ baseUrl: 'http://x/v1', model: 'm', apiKey: 'sk-secret-123', reasoningEffort: 'auto' })
+    expect(s.getModelConfig()).toEqual({ protocol: 'openai-completions', baseUrl: 'http://x/v1', model: 'm', apiKey: 'sk-secret-123', reasoningEffort: 'auto' })
   })
 
   it('重新加载后设置仍在；只改地址时不丢密钥', async () => {
@@ -164,7 +182,7 @@ describe('设置服务', () => {
 
     const b = new SettingsService(tmp.dir, secrets)
     await b.load()
-    expect(b.getModelConfig()).toEqual({ baseUrl: 'http://y/v1', model: 'm', apiKey: 'k1', reasoningEffort: 'auto' })
+    expect(b.getModelConfig()).toEqual({ protocol: 'openai-completions', baseUrl: 'http://y/v1', model: 'm', apiKey: 'k1', reasoningEffort: 'auto' })
     expect(b.get().appearance.theme).toBe('light')
   })
 
@@ -172,10 +190,10 @@ describe('设置服务', () => {
     const dev = { baseUrl: 'http://dev/v1', apiKey: 'devkey', model: 'dev-model' }
     const s = new SettingsService(tmp.dir, secrets, dev)
     await s.load()
-    expect(s.getModelConfig()).toEqual({ ...dev, reasoningEffort: 'auto' })
-    expect(s.get().model).toEqual({ baseUrl: 'http://dev/v1', model: 'dev-model', hasApiKey: true, reasoningEffort: 'auto' })
+    expect(s.getModelConfig()).toEqual({ ...dev, protocol: 'openai-completions', reasoningEffort: 'auto' })
+    expect(s.get().model).toEqual({ protocol: 'openai-completions', baseUrl: 'http://dev/v1', model: 'dev-model', hasApiKey: true, reasoningEffort: 'auto' })
     await s.set({ model: { baseUrl: 'http://mine/v1', model: 'mine' } })
-    expect(s.getModelConfig()).toEqual({ baseUrl: 'http://mine/v1', model: 'mine', apiKey: '', reasoningEffort: 'auto' })
+    expect(s.getModelConfig()).toEqual({ protocol: 'openai-completions', baseUrl: 'http://mine/v1', model: 'mine', apiKey: '', reasoningEffort: 'auto' })
   })
 
   it('文件夹通过实际目录管理，设置不再拥有独立领域列表', async () => {
@@ -201,9 +219,15 @@ describe('设置服务', () => {
 })
 
 describe('开发期模型配置', () => {
+  it('开发协议与环境变量优先级可配置，未知协议不能静默切换', () => {
+    const env = { JOT_NO_DOTENV: '1', JOT_LLM_BASE_URL: 'http://fixture/v1', JOT_LLM_MODEL: 'fixture', JOT_LLM_PROTOCOL: 'anthropic-messages' }
+    expect(loadDevModelDefaults(tmp.dir, env)?.protocol).toBe('anthropic-messages')
+    expect(() => loadDevModelDefaults(tmp.dir, { ...env, JOT_LLM_PROTOCOL: 'other' })).toThrow('协议不受支持')
+  })
+
   it('从 .env 读取，进程环境变量优先', () => {
     fs.writeFileSync(path.join(tmp.dir, '.env'), '# 注释\nJOT_LLM_BASE_URL="http://file/v1"\nJOT_LLM_API_KEY=filekey\nJOT_LLM_MODEL=file-model\n')
-    expect(loadDevModelDefaults(tmp.dir, {})).toEqual({ baseUrl: 'http://file/v1', apiKey: 'filekey', model: 'file-model' })
+    expect(loadDevModelDefaults(tmp.dir, {})).toEqual({ protocol: 'openai-completions', baseUrl: 'http://file/v1', apiKey: 'filekey', model: 'file-model' })
     expect(loadDevModelDefaults(tmp.dir, { JOT_LLM_MODEL: 'env-model' })?.model).toBe('env-model')
   })
 

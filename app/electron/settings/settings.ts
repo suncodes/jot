@@ -5,6 +5,7 @@ import type { Settings, SettingsInput } from '@shared/types'
 import { COMPACTION_THRESHOLDS, MODEL_BUDGET_BOUNDS, type ModelBudgetOverrides } from '@shared/model-budget'
 import { JotError } from '@shared/result'
 import { REASONING_EFFORTS, type ReasoningEffort } from '@shared/reasoning'
+import { DEFAULT_MODEL_PROTOCOL, MODEL_PROTOCOLS, type ModelProtocol } from '@shared/model-protocol'
 
 /** 密钥加解密。主进程里由 Electron 的 safeStorage 实现，测试里用假实现。 */
 export interface SecretStore {
@@ -14,7 +15,7 @@ export interface SecretStore {
 
 interface SettingsFile {
   vaultPath?: string
-  model: { baseUrl: string; model: string; apiKeyEnc?: string; reasoningEffort?: ReasoningEffort } & ModelBudgetOverrides
+  model: { protocol: ModelProtocol; baseUrl: string; model: string; apiKeyEnc?: string; reasoningEffort?: ReasoningEffort } & ModelBudgetOverrides
   classify: Settings['classify']
   capture: Settings['capture']
   window: Settings['window']
@@ -25,7 +26,7 @@ interface SettingsFile {
 }
 
 const DEFAULTS: SettingsFile = {
-  model: { baseUrl: '', model: '', reasoningEffort: 'auto' },
+  model: { protocol: DEFAULT_MODEL_PROTOCOL, baseUrl: '', model: '', reasoningEffort: 'auto' },
   classify: { enabled: true },
   capture: { hotkey: 'Ctrl+Alt+N', launchAtLogin: false },
   window: { closeBehavior: 'tray' },
@@ -54,7 +55,7 @@ export class SettingsService {
     const raw = await readJson<Partial<SettingsFile>>(this.file, {})
     this.data = {
       vaultPath: raw.vaultPath,
-      model: { baseUrl: raw.model?.baseUrl ?? '', model: raw.model?.model ?? '', apiKeyEnc: raw.model?.apiKeyEnc, reasoningEffort: raw.model?.reasoningEffort && REASONING_EFFORTS.includes(raw.model.reasoningEffort) ? raw.model.reasoningEffort : 'auto',
+      model: { protocol: raw.model?.protocol ?? DEFAULT_MODEL_PROTOCOL, baseUrl: raw.model?.baseUrl ?? '', model: raw.model?.model ?? '', apiKeyEnc: raw.model?.apiKeyEnc, reasoningEffort: raw.model?.reasoningEffort && REASONING_EFFORTS.includes(raw.model.reasoningEffort) ? raw.model.reasoningEffort : 'auto',
         ...(raw.model?.contextWindow !== undefined ? { contextWindow: raw.model.contextWindow } : {}),
         ...(raw.model?.compactionThreshold !== undefined ? { compactionThreshold: raw.model.compactionThreshold } : {}) },
       classify: { enabled: raw.classify?.enabled ?? DEFAULTS.classify.enabled },
@@ -83,7 +84,7 @@ export class SettingsService {
   get(): Settings {
     const model = this.getModelConfig()
     return {
-      model: { baseUrl: model?.baseUrl ?? '', model: model?.model ?? '', hasApiKey: !!model?.apiKey, reasoningEffort: model?.reasoningEffort ?? 'auto', ...this.budgetOverrides() },
+      model: { protocol: model?.protocol ?? this.data.model.protocol, baseUrl: model?.baseUrl ?? '', model: model?.model ?? '', hasApiKey: !!model?.apiKey, reasoningEffort: model?.reasoningEffort ?? 'auto', ...this.budgetOverrides() },
       classify: { ...this.data.classify },
       capture: { ...this.data.capture },
       window: { ...this.data.window },
@@ -111,9 +112,9 @@ export class SettingsService {
           apiKey = ''
         }
       }
-      return { baseUrl, model, apiKey, reasoningEffort: this.data.model.reasoningEffort ?? 'auto', ...this.budgetOverrides() }
+      return { baseUrl, model, apiKey, protocol: this.data.model.protocol, reasoningEffort: this.data.model.reasoningEffort ?? 'auto', ...this.budgetOverrides() }
     }
-    return this.devModel ? { ...this.devModel, reasoningEffort: this.data.model.reasoningEffort ?? 'auto', ...this.budgetOverrides() } : null
+    return this.devModel ? { ...this.devModel, protocol: this.devModel.protocol ?? DEFAULT_MODEL_PROTOCOL, reasoningEffort: this.data.model.reasoningEffort ?? 'auto', ...this.budgetOverrides() } : null
   }
 
   set(input: SettingsInput): Promise<Settings> {
@@ -124,9 +125,11 @@ export class SettingsService {
     const previousModel = this.getModelConfig()
     const updated = structuredClone(this.data)
     if (input.model) {
-      const { baseUrl, model, apiKey } = input.model
+      const { baseUrl, model, apiKey, protocol } = input.model
+      if (protocol !== undefined && !MODEL_PROTOCOLS.includes(protocol)) throw new JotError('INVALID_INPUT', '模型接口协议不受支持')
       const changedIdentity = baseUrl !== undefined && baseUrl.trim() !== previousModel?.baseUrl
         || model !== undefined && model.trim() !== previousModel?.model
+        || protocol !== undefined && protocol !== (previousModel?.protocol ?? this.data.model.protocol)
       const overrides = this.budgetOverrides()
       if (changedIdentity) delete overrides.contextWindow
       const { contextWindow, compactionThreshold, reasoningEffort } = input.model
@@ -147,6 +150,7 @@ export class SettingsService {
       updated.model.reasoningEffort = changedIdentity ? reasoningEffort ?? 'auto' : reasoningEffort ?? updated.model.reasoningEffort ?? 'auto'
       if (baseUrl !== undefined) updated.model.baseUrl = baseUrl.trim()
       if (model !== undefined) updated.model.model = model.trim()
+      if (protocol !== undefined) updated.model.protocol = protocol
       if (apiKey !== undefined) updated.model.apiKeyEnc = apiKey ? this.secrets.encrypt(apiKey) : undefined
     }
     if (input.classify) Object.assign(updated.classify, input.classify)
@@ -160,7 +164,7 @@ export class SettingsService {
     this.data = updated
     const next = this.get()
     const model = this.getModelConfig()
-    const modelChanged = model?.baseUrl !== previousModel?.baseUrl || model?.model !== previousModel?.model || model?.apiKey !== previousModel?.apiKey
+    const modelChanged = model?.protocol !== previousModel?.protocol || model?.baseUrl !== previousModel?.baseUrl || model?.model !== previousModel?.model || model?.apiKey !== previousModel?.apiKey
       || model?.contextWindow !== previousModel?.contextWindow || model?.compactionThreshold !== previousModel?.compactionThreshold
     for (const l of this.listeners) l(next, modelChanged)
     return next

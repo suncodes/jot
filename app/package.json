@@ -16,6 +16,7 @@
     "test:e2e": "electron-vite build && playwright test",
     "verify:llm": "vitest run --config vitest.llm.config.ts",
     "test:packed": "playwright test --config playwright.packed.config.ts",
+    "test:chrome": "playwright test --config playwright.chrome.config.ts",
     "app:dir": "electron-vite build && electron-builder --win --dir",
     "app:dist": "electron-vite build && electron-builder --win",
     "test:perf": "vitest run --config vitest.perf.config.ts",
@@ -25,7 +26,7 @@
     "licenses:check": "node scripts/licenses.mjs --check",
     "source:export": "node scripts/export-source.mjs",
     "release:artifacts": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/package-release.ps1",
-    "test:release": "vitest run tests/unit/settings.test.ts tests/unit/secrets.test.ts tests/unit/content-scope.test.ts tests/unit/library-pins.test.ts tests/unit/pi.test.ts tests/unit/u6-productivity.test.ts tests/unit/release.test.ts"
+    "test:release": "vitest run tests/unit/settings.test.ts tests/unit/secrets.test.ts tests/unit/content-scope.test.ts tests/unit/library-pins.test.ts tests/unit/pi.test.ts tests/unit/model-protocols.test.ts tests/unit/reasoning.test.ts tests/unit/budget.test.ts tests/unit/u6-productivity.test.ts tests/unit/release.test.ts"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "1.5.2",

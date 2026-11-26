@@ -4,10 +4,12 @@ import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { agentScript, chunkIds, startFakeLlm } from '../helpers/fake-llm'
+import { startProtocolLlm } from '../helpers/fake-protocols'
+import { MODEL_PROTOCOLS } from '../../shared/model-protocol'
 import { callOnPage } from '../e2e/file-fixture'
 import { windowByUrl } from '../e2e/helpers'
 
-test('公开发行包：许可与能力资源完整，隔离建库、捕获、助手读写和加密配置可重启', async () => {
+for (const protocol of MODEL_PROTOCOLS) test(`公开发行包 ${protocol}：资源完整，隔离建库、捕获、助手读写和加密配置可重启`, async () => {
   const exe = path.resolve(process.env.JOT_PACKED_EXE ?? path.join(import.meta.dirname, '../../dist/win-unpacked/Jot.exe'))
   const packed = path.dirname(exe), repo = path.resolve(import.meta.dirname, '../../..')
   for (const file of ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'PRIVACY.md', 'licenses/THIRD_PARTY_LICENSES.txt']) {
@@ -21,11 +23,12 @@ test('公开发行包：许可与能力资源完整，隔离建库、捕获、�
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'jot-public-release-'))
   const data = path.join(root, 'user-data'), vault = path.join(root, '虚构笔记库'), note = 'content/工作/发行验证.md'
   const key = 'public-release-fixture-key', body = '这是隔离发行测试创建的虚构笔记。'
-  const fake = await startFakeLlm(agentScript([
+  const respond = agentScript([
     () => ({ toolCall: { name: 'write_files', arguments: { files: [{ path: note, body }] } } }),
     () => ({ toolCall: { name: 'read', arguments: { path: note } } }),
     results => '已保存并读取[^' + chunkIds(results[1]!)[0] + ']。',
-  ]))
+  ])
+  const fake = protocol === 'openai-completions' ? await startFakeLlm(respond) : await startProtocolLlm(protocol, respond)
   const env: Record<string, string> = Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined && !entry[0].startsWith('JOT_')))
   const noon = new Date(); noon.setHours(12, 0, 0, 0)
   Object.assign(env, { JOT_USER_DATA: data, JOT_NO_DOTENV: '1', JOT_TEST_NOW: noon.toISOString() })
@@ -38,7 +41,7 @@ test('公开发行包：许可与能力资源完整，隔离建库、捕获、�
     await expect(page.getByTestId('dev-model')).toHaveCount(0)
     await page.getByTestId('model-skip').click(); await page.getByTestId('onboarding-start').click()
     await expect(page.getByTestId('shell')).toBeVisible()
-    await callOnPage(page, 'settings:set', { model: { baseUrl: fake.baseUrl, model: 'public-release', apiKey: key }, classify: { enabled: false }, daily: { enabled: false } })
+    await callOnPage(page, 'settings:set', { model: { protocol, baseUrl: fake.baseUrl, model: 'public-release', apiKey: key }, classify: { enabled: false }, daily: { enabled: false } })
     const catalog = await callOnPage(page, 'capabilities:catalog', undefined)
     expect(catalog.agents.map(agent => agent.id)).toEqual(['default'])
     expect(catalog.plugins.map(plugin => plugin.id).sort()).toEqual(['jot-core', 'jot-productivity', 'work-review'])
@@ -68,7 +71,7 @@ test('公开发行包：许可与能力资源完整，隔离建库、捕获、�
     const requests = fake.requests.length
     app = await electron.launch({ executablePath: exe, env })
     page = await windowByUrl(app, 'index.html'); await expect(page.getByTestId('shell')).toBeVisible()
-    expect((await callOnPage(page, 'settings:get', undefined)).model.hasApiKey).toBe(true)
+    expect((await callOnPage(page, 'settings:get', undefined)).model).toMatchObject({ protocol, hasApiKey: true })
     expect((await callOnPage(page, 'agent:get', { conversationId })).messages.at(-1)?.text).toContain('已保存并读取')
     expect(fake.requests).toHaveLength(requests)
   } finally {

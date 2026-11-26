@@ -8,5 +8,6 @@
 - 独立个人日记、工作日记应用插件及日报、周报、月报、OKR 工作报告能力。
 - 公开文档、Apache-2.0 许可及第三方声明、源码快照导出、Windows 构建与发布工作流。
 - 模型密钥只通过系统加密保存，加密失败不改变已保存设置。
+- 模型设置支持 OpenAI Chat Completions、OpenAI Responses 和 Anthropic Messages，助手、后台任务和上下文压缩统一使用所选协议。
 
 本节列出当前候选版本内容，不表示已经创建远程 Release。

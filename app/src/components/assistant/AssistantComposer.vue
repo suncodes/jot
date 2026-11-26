@@ -189,7 +189,7 @@ watch(reasoningModel, (_value, _previous, cleanup) => {
   reasoningEfforts.value = COMMON_REASONING_EFFORTS
   const model = app.settings?.model
   if (!model) return
-  void call('settings:reasoning', { baseUrl: model.baseUrl, model: model.model })
+  void call('settings:reasoning', { baseUrl: model.baseUrl, model: model.model, protocol: model.protocol })
     .then(value => { if (active) reasoningEfforts.value = value.supported })
     .catch(error => { if (active) console.error('[assistant] 读取推理档位失败：', error) })
   cleanup(() => { active = false })

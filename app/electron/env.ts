@@ -2,8 +2,11 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { ModelBudgetOverrides } from '@shared/model-budget'
 import type { ReasoningEffort } from '@shared/reasoning'
+import { DEFAULT_MODEL_PROTOCOL, MODEL_PROTOCOLS, type ModelProtocol } from '@shared/model-protocol'
+import { JotError } from '@shared/result'
 
 export interface ModelConfig extends ModelBudgetOverrides {
+  protocol?: ModelProtocol
   reasoningEffort?: ReasoningEffort
   baseUrl: string
   apiKey: string
@@ -36,5 +39,7 @@ export function loadDevModelDefaults(repoRoot: string, env: NodeJS.ProcessEnv = 
   const apiKey = pick('JOT_LLM_API_KEY')
   const model = pick('JOT_LLM_MODEL')
   if (!baseUrl || !model) return null
-  return { baseUrl, apiKey, model }
+  const protocol = pick('JOT_LLM_PROTOCOL') || DEFAULT_MODEL_PROTOCOL
+  if (!MODEL_PROTOCOLS.includes(protocol as ModelProtocol)) throw new JotError('INVALID_INPUT', '模型接口协议不受支持：' + protocol)
+  return { baseUrl, apiKey, model, protocol: protocol as ModelProtocol }
 }

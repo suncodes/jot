@@ -13,9 +13,11 @@ pnpm app:dist
 pnpm test:packed open-source-release.spec.ts
 ```
 
-`test:release` 覆盖系统密钥及设置失败、内容范围、固定与导航数据、预装技能真实加载和工具链、版本标签及公开源码导出。
+`test:release` 覆盖系统密钥及设置失败、三种模型协议的流式工具调用、推理参数、预算与压缩、内容范围、固定与导航数据、预装技能真实加载和工具链、版本标签及公开源码导出。
 
-`open-source-release.spec.ts` 针对实际 `dist/win-unpacked/Jot.exe`，检查版权文件、完整能力资源、建库、灵感、助手读写、密钥加密及重启后的持久化。只连接测试进程提供的本地假服务。通过 `JOT_PACKED_EXE` 可以选择另一个候选包。
+`open-source-release.spec.ts` 针对实际 `dist/win-unpacked/Jot.exe`，分别使用 Chat Completions、Responses 和 Anthropic Messages，检查版权文件、完整能力资源、建库、灵感、助手读写、密钥加密及重启后的持久化。只连接测试进程提供的本地假服务。通过 `JOT_PACKED_EXE` 可以选择另一个候选包。
+
+模型表单另使用 `pnpm test:chrome` 验证协议选择、未保存连接测试、保存与重新加载、窗口和推理档位重置及窄窗布局。使用本机 Google Chrome，找不到时可设置 `JOT_CHROME_EXE` 指向 `chrome.exe`，不会回退到 Edge。`tests/chrome/` 提供真实表单入口，后端使用隔离 Core 和本地原生协议假服务。
 
 ## 按改动选择测试
 

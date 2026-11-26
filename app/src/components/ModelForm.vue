@@ -6,11 +6,13 @@ import { t } from '@/strings'
 import AppSelect from '@/components/AppSelect.vue'
 import { COMMON_REASONING_EFFORTS, type ReasoningEffort, type ResolvedReasoning } from '@shared/reasoning'
 import { COMPACTION_THRESHOLDS, CONTEXT_WINDOW_PRESETS, DEFAULT_COMPACTION_THRESHOLD, MODEL_BUDGET_BOUNDS, type CompactionThreshold, type ResolvedModelBudget } from '@shared/model-budget'
+import { DEFAULT_MODEL_PROTOCOL, MODEL_PROTOCOLS } from '@shared/model-protocol'
 
 // 模型配置表单：首次启动引导和设置页共用。
 const app = useAppStore()
 const initialWindow = app.settings?.model.contextWindow
 const form = reactive({
+  protocol: app.settings?.model.protocol ?? DEFAULT_MODEL_PROTOCOL,
   baseUrl: app.settings?.model.baseUrl ?? '',
   model: app.settings?.model.model ?? '',
   apiKey: '',
@@ -18,6 +20,8 @@ const form = reactive({
   contextWindow: (initialWindow ?? '') as number | '',
   threshold: String(app.settings?.model.compactionThreshold ?? DEFAULT_COMPACTION_THRESHOLD),
 })
+const protocolOptions = MODEL_PROTOCOLS.map(value => ({ value, label: t.onboarding.protocols[value] }))
+const baseUrlPlaceholder = computed(() => form.protocol === 'anthropic-messages' ? 'https://api.anthropic.com' : 'https://…/v1')
 const windowChoice = ref(initialWindow === undefined ? 'auto' : CONTEXT_WINDOW_PRESETS.some(item => item.tokens === initialWindow) ? String(initialWindow) : 'other')
 const windowOptions = [
   { value: 'auto', label: t.settings.budgetAuto },
@@ -31,10 +35,10 @@ const validWindow = computed(() => selectedWindow.value === undefined || Number.
 const reasoning = ref<ResolvedReasoning | null>(null)
 const reasoningError = ref('')
 const reasoningOptions = computed(() => (reasoning.value?.supported ?? COMMON_REASONING_EFFORTS).map(value => ({ value, label: t.reasoning.labels[value] })))
-watch([() => form.baseUrl, () => form.model], (_value, _old, cleanup) => {
+watch([() => form.baseUrl, () => form.model, () => form.protocol], (_value, _old, cleanup) => {
   let active = true
   reasoning.value = null; reasoningError.value = ''
-  void call('settings:reasoning', { baseUrl: form.baseUrl.trim(), model: form.model.trim() })
+  void call('settings:reasoning', { baseUrl: form.baseUrl.trim(), model: form.model.trim(), protocol: form.protocol })
     .then(value => { if (active) reasoning.value = value })
     .catch(e => { if (active) reasoningError.value = (e as Error).message })
   cleanup(() => { active = false })
@@ -53,6 +57,7 @@ let syncing = false
 watch(() => app.settings?.model, async value => {
   if (!value || saving.value || snapshot() !== baseline) return
   syncing = true
+  form.protocol = value.protocol
   form.baseUrl = value.baseUrl; form.model = value.model; form.reasoningEffort = value.reasoningEffort
   form.contextWindow = value.contextWindow ?? ''
   form.threshold = String(value.compactionThreshold ?? DEFAULT_COMPACTION_THRESHOLD)
@@ -60,16 +65,16 @@ watch(() => app.settings?.model, async value => {
   await nextTick()
   baseline = snapshot(); syncing = false
 })
-watch([() => form.baseUrl, () => form.model], () => { if (!syncing) { windowChoice.value = 'auto'; form.contextWindow = ''; form.reasoningEffort = 'auto' } })
+watch([() => form.baseUrl, () => form.model, () => form.protocol], () => { if (!syncing) { windowChoice.value = 'auto'; form.contextWindow = ''; form.reasoningEffort = 'auto' } })
 watch(windowChoice, value => {
   if (value !== 'auto' && value !== 'other') form.contextWindow = Number(value)
 })
 // 编辑中的预算不落盘，复用主进程同一解析逻辑；只展示最后一份输入的结果。
-watch([() => form.baseUrl, () => form.model, selectedWindow, () => form.threshold, () => form.reasoningEffort], (_values, _old, cleanup) => {
+watch([() => form.baseUrl, () => form.model, () => form.protocol, selectedWindow, () => form.threshold, () => form.reasoningEffort], (_values, _old, cleanup) => {
   let active = true
   preview.value = null; previewError.value = ''
   if (!validWindow.value) return
-  const input = { baseUrl: form.baseUrl.trim(), model: form.model.trim(), contextWindow: selectedWindow.value, compactionThreshold: Number(form.threshold) as CompactionThreshold, reasoningEffort: form.reasoningEffort as ReasoningEffort }
+  const input = { baseUrl: form.baseUrl.trim(), model: form.model.trim(), protocol: form.protocol, contextWindow: selectedWindow.value, compactionThreshold: Number(form.threshold) as CompactionThreshold, reasoningEffort: form.reasoningEffort as ReasoningEffort }
   const timer = setTimeout(() => {
     void call('settings:modelBudget', input).then(value => { if (active) preview.value = value })
       .catch(e => { if (active) previewError.value = (e as Error).message })
@@ -83,6 +88,7 @@ async function test(): Promise<void> {
   if (!validWindow.value) { result.value = { ok: false, text: t.settings.invalidContextWindow }; testing.value = false; return }
   try {
     const r = await call('settings:testModel', {
+      protocol: form.protocol,
       baseUrl: form.baseUrl.trim() || undefined,
       model: form.model.trim() || undefined,
       apiKey: form.apiKey || undefined,
@@ -103,7 +109,7 @@ async function save(): Promise<void> {
   saving.value = true
   try {
     await app.updateSettings({
-      model: { baseUrl: form.baseUrl, model: form.model, ...(form.apiKey ? { apiKey: form.apiKey } : {}),
+      model: { protocol: form.protocol, baseUrl: form.baseUrl, model: form.model, ...(form.apiKey ? { apiKey: form.apiKey } : {}),
         contextWindow: selectedWindow.value ?? null, compactionThreshold: Number(form.threshold) as CompactionThreshold, reasoningEffort: form.reasoningEffort as ReasoningEffort },
     })
     form.apiKey = ''
@@ -118,9 +124,10 @@ async function save(): Promise<void> {
 
 <template>
   <div class="model-form">
+    <div class="model-field"><span>{{ t.onboarding.protocol }}</span><AppSelect v-model="form.protocol" :options="protocolOptions" :label="t.onboarding.protocol" data-testid="model-protocol" /></div>
     <label>
       <span>{{ t.onboarding.baseUrl }}</span>
-      <input v-model="form.baseUrl" type="text" data-testid="model-base-url" placeholder="https://…/v1" />
+      <input v-model="form.baseUrl" type="text" data-testid="model-base-url" :placeholder="baseUrlPlaceholder" />
     </label>
     <label>
       <span>{{ t.onboarding.apiKey }}</span>

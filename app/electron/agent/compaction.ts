@@ -6,7 +6,7 @@ import { JotError } from '@shared/result'
 import type { StateStore } from '../state/state'
 import { localIso } from '../util/time'
 import type { PiHost } from './pi'
-import { conversationHistory, estimateInputTokens, fitModelRequest, type BudgetedRequest, type ChatPayload, type ModelLimits } from './budget'
+import { conversationHistory, estimateInputTokens, fitModelRequest, type BudgetedRequest, type ModelPayload, type ModelLimits } from './budget'
 
 type Mode = 'normal' | 'strict'
 interface Summary { through_message_id: string; summary: string }
@@ -65,7 +65,7 @@ export class ConversationCompactor {
     if (through < 0) return { summary: '', history: conversationHistory(messages, strict), covered: 0 }
     return { summary: stored!.summary, history: turns.slice(through + 1).map(turn => turn.text), covered: through + 1 }
   }
-  private fit(id: string, messages: ChatMessage[], strict: boolean, payload: ChatPayload, limits: ModelLimits, model: string): BudgetedRequest {
+  private fit(id: string, messages: ChatMessage[], strict: boolean, payload: ModelPayload, limits: ModelLimits, model: string): BudgetedRequest {
     const projection = this.projection(id, messages, strict)
     const result = fitModelRequest(payload, projection.history, limits, model, projection.summary)
     if (projection.summary && result.budget.blocked) {
@@ -77,7 +77,7 @@ export class ConversationCompactor {
   }
 
   /** 只有历史需要裁剪且压缩可能有用时短暂等待；必要材料本身超限则直接回退。 */
-  async prepare(id: string, messages: ChatMessage[], strict: boolean, payload: ChatPayload, limits: ModelLimits, model: string,
+  async prepare(id: string, messages: ChatMessage[], strict: boolean, payload: ModelPayload, limits: ModelLimits, model: string,
     signal: AbortSignal, waiting: (value: boolean) => void, allowWait = true): Promise<BudgetedRequest> {
     if (signal.aborted) throw new JotError('CANCELLED', '操作已停止')
     let request = this.fit(id, messages, strict, payload, limits, model)

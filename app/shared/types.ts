@@ -107,6 +107,7 @@ export interface VaultStatus {
 }
 
 export interface ModelSettings extends ModelBudgetOverrides {
+  protocol: import('./model-protocol').ModelProtocol
   baseUrl: string
   model: string
   hasApiKey: boolean
@@ -128,7 +129,7 @@ export interface Settings {
 
 /** 写入设置时的输入：密钥只能写入，不能读回 */
 export interface SettingsInput {
-  model?: { baseUrl?: string; model?: string; apiKey?: string; contextWindow?: number | null; compactionThreshold?: CompactionThreshold | null; reasoningEffort?: ReasoningEffort }
+  model?: { protocol?: import('./model-protocol').ModelProtocol; baseUrl?: string; model?: string; apiKey?: string; contextWindow?: number | null; compactionThreshold?: CompactionThreshold | null; reasoningEffort?: ReasoningEffort }
   classify?: Partial<Settings['classify']>
   capture?: Partial<Settings['capture']>
   window?: Partial<Settings['window']>

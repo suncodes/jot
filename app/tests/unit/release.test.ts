@@ -33,6 +33,8 @@ describe('公开源码与发行入口', () => {
     expect(paths).toContain('app/resources/plugins/jot-productivity/skills/skill-manager/SKILL.md')
     expect(paths).toContain('app/resources/app-extensions/work-diary/extension.json')
     expect(paths).toContain('app/pnpm-lock.yaml')
+    expect(paths).toContain('app/playwright.chrome.config.ts')
+    expect(paths).toContain('app/shared/model-protocol.ts')
     expect(paths).toContain('.env.example')
     expect(paths).toContain('.github/workflows/release.yml')
     expect(paths).toContain('licenses/THIRD_PARTY_LICENSES.txt')

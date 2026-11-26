@@ -18,4 +18,6 @@ export interface ResolvedReasoning {
   reported?: string
 }
 
-export const reasoningModelKey = (config: { baseUrl: string; model: string }): string => config.baseUrl.replace(/\/+$/, '') + '|' + config.model
+import { DEFAULT_MODEL_PROTOCOL, type ModelEndpoint } from './model-protocol'
+
+export const reasoningModelKey = (config: ModelEndpoint): string => (config.protocol ?? DEFAULT_MODEL_PROTOCOL) + '|' + config.baseUrl.replace(/\/+$/, '') + '|' + config.model

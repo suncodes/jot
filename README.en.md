@@ -18,7 +18,7 @@ This is a **0.x preview** for Windows x64. Keep independent backups of important
 
 1. Download the Windows x64 installer or ZIP from [Releases](https://github.com/suncodes/jot/releases). Keep the complete extracted directory when using the ZIP.
 2. Select a local folder for your notebook.
-3. Configure an OpenAI-compatible `/chat/completions` service, or skip this step to use the notebook without AI.
+3. Select OpenAI Chat Completions, OpenAI Responses, or Anthropic Messages and configure the service URL, model, and API key. You can also skip this step to use the notebook without AI.
 4. Capture ideas, create notes, or open the assistant. Diary shortcuts are configured under application plugins in settings.
 
 Notebook files and notebook-specific state stay in the selected folder. Global settings default to `%APPDATA%/jot/settings.json` for both installer and ZIP builds. API keys are encrypted using the operating system. AI features send relevant material to your configured model provider; read [PRIVACY.md](PRIVACY.md).

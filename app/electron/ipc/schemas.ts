@@ -1,4 +1,5 @@
 import { REASONING_EFFORTS } from '@shared/reasoning'
+import { MODEL_PROTOCOLS } from '@shared/model-protocol'
 import { z, type ZodType } from 'zod'
 import { MODEL_BUDGET_BOUNDS } from '@shared/model-budget'
 import { COMMAND_IDENTIFIER, EXTENSION_IDENTIFIER } from '@shared/commands'
@@ -197,14 +198,14 @@ export const argSchemas: Record<Channel, ZodType> = {
   'jobs:cancel': z.object({ jobId: z.string().min(1) }),
 
   'settings:get': none,
-  'settings:reasoning': z.object({ baseUrl: z.string(), model: z.string() }).strict(),
-  'settings:modelBudget': z.object({ baseUrl: z.string(), model: z.string(),
+  'settings:reasoning': z.object({ baseUrl: z.string(), model: z.string(), protocol: z.enum(MODEL_PROTOCOLS).optional() }).strict(),
+  'settings:modelBudget': z.object({ baseUrl: z.string(), model: z.string(), protocol: z.enum(MODEL_PROTOCOLS).optional(),
     contextWindow: z.number().int().min(MODEL_BUDGET_BOUNDS.contextWindow.min).max(MODEL_BUDGET_BOUNDS.contextWindow.max).optional(),
     compactionThreshold: compactionThreshold.optional(), reasoningEffort: reasoningEffort.optional(),
   }).strict(),
   'settings:set': z.object({
     model: z.object({
-      baseUrl: z.string(), model: z.string(), apiKey: z.string(),
+      baseUrl: z.string(), model: z.string(), apiKey: z.string(), protocol: z.enum(MODEL_PROTOCOLS),
       contextWindow: z.number().int().min(MODEL_BUDGET_BOUNDS.contextWindow.min).max(MODEL_BUDGET_BOUNDS.contextWindow.max).nullable(),
       compactionThreshold: compactionThreshold.nullable(), reasoningEffort,
     }).partial().strict().optional(),
@@ -224,6 +225,6 @@ export const argSchemas: Record<Channel, ZodType> = {
       .partial()
       .optional(),
   }).strict(),
-  'settings:testModel': z.object({ baseUrl: z.string(), apiKey: z.string(), model: z.string(), reasoningEffort,
+  'settings:testModel': z.object({ baseUrl: z.string(), apiKey: z.string(), model: z.string(), reasoningEffort, protocol: z.enum(MODEL_PROTOCOLS),
     contextWindow: z.number().int().min(MODEL_BUDGET_BOUNDS.contextWindow.min).max(MODEL_BUDGET_BOUNDS.contextWindow.max), compactionThreshold }).partial().strict(),
 }

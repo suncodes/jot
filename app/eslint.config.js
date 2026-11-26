@@ -11,6 +11,7 @@ export default tseslint.config(
     languageOptions: { parserOptions: { parser: tseslint.parser }, globals: globals.browser },
   },
   { files: ['src/**/*.ts'], languageOptions: { globals: globals.browser } },
+  { files: ['tests/chrome/*.js'], languageOptions: { globals: globals.browser } },
   { files: ['electron/**/*.ts', 'tests/**/*.ts', 'scripts/**/*.{ts,mjs}', '*.config.{ts,js}'], languageOptions: { globals: globals.node } },
   {
     rules: {

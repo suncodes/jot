@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 
 const ROOT_FILES = ['.env.example', '.gitattributes', '.gitignore', 'LICENSE', 'NOTICE', 'README.md', 'README.en.md', 'THIRD_PARTY_NOTICES.md', 'PRIVACY.md', 'SECURITY.md', 'CONTRIBUTING.md', 'KNOWN_ISSUES.md', 'CHANGELOG.md']
-const APP_FILES = ['.npmrc', 'package.json', 'pnpm-lock.yaml', 'electron.vite.config.ts', 'eslint.config.js', 'playwright.config.ts', 'playwright.packed.config.ts', 'tsconfig.base.json', 'tsconfig.e2e.json', 'tsconfig.json', 'tsconfig.node.json', 'tsconfig.web.json', 'vitest.config.ts', 'vitest.llm.config.ts', 'vitest.perf.config.ts']
+const APP_FILES = ['.npmrc', 'package.json', 'pnpm-lock.yaml', 'electron.vite.config.ts', 'eslint.config.js', 'playwright.config.ts', 'playwright.packed.config.ts', 'playwright.chrome.config.ts', 'tsconfig.base.json', 'tsconfig.e2e.json', 'tsconfig.json', 'tsconfig.node.json', 'tsconfig.web.json', 'vitest.config.ts', 'vitest.llm.config.ts', 'vitest.perf.config.ts']
 const DOC_FILES = ['README.md', 'user-guide.md', 'development.md', 'architecture.md', 'plugins.md', 'work-reports.md', 'release.md']
 const DIRECTORIES = ['.github', 'licenses', 'app/electron', 'app/shared', 'app/src', 'app/resources', 'app/scripts', 'app/tests']
 const BLOCKED = new Set(['.git', '.jot', 'node_modules', 'out', 'dist', 'dist-refresh', 'tmp', 'coverage', 'logs', 'test-results', 'playwright-report', 'blob-report'])

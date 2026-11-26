@@ -18,7 +18,7 @@ Jot 是一款以本地文件为主的 Windows 笔记与 AI 助手。随手记录
 
 1. 从 [Releases](https://github.com/suncodes/jot/releases) 下载 Windows x64 安装器，或解压 ZIP 后运行 `Jot.exe`。ZIP 中的整个目录需要一起保留。
 2. 选择一个本地文件夹作为笔记库。新库会创建默认内容目录，可以自行改名或新增子目录。
-3. 在设置中配置支持 `/chat/completions` 的 OpenAI 兼容模型服务；也可以先跳过，只使用记录和编辑功能。
+3. 在设置中选择 OpenAI Chat Completions、OpenAI Responses 或 Anthropic Messages 协议，填写对应服务地址、模型名和密钥；也可以先跳过，只使用记录和编辑功能。
 4. 在底部记录灵感，在内容库创建笔记，或打开助手提问。日记快捷入口在“设置 → 应用插件”配置。
 
 笔记、附件、生成内容和按库保存的能力位于所选库中；模型设置默认位于 `%APPDATA%/jot/settings.json`，密钥使用操作系统加密。安装器和免安装 ZIP 均使用该用户配置目录。AI 请求会向你配置的模型服务发送相关材料，详见 [隐私与数据说明](PRIVACY.md)。

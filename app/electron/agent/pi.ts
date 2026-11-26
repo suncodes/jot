@@ -7,8 +7,9 @@ import type { ModelState } from '@shared/types'
 import type { ReasoningEffort, ResolvedReasoning } from '@shared/reasoning'
 import type { ModelConfig } from '../env'
 import type { ContextBudget, ModelBudgetOverrides } from '@shared/model-budget'
-import { fitModelRequest, resolveModelLimits, type ChatPayload, type ModelLimits, type BudgetedRequest } from './budget'
+import { fitModelRequest, resolveModelLimits, type ModelPayload, type ModelLimits, type BudgetedRequest } from './budget'
 import { cleanReasoningPayload, resolveReasoning, sentReasoning, trustedModel } from './reasoning'
+import { DEFAULT_MODEL_PROTOCOL, MODEL_PROTOCOLS, protocolBaseUrl, type ModelEndpoint } from '@shared/model-protocol'
 
 type Pi = typeof import('@earendil-works/pi-coding-agent')
 const PROVIDER = 'jot'
@@ -28,7 +29,7 @@ export interface PiSessionOptions {
   onReasoning?: (reasoning: ResolvedReasoning) => void
   history?: string[]
   onBudget?: (budget: ContextBudget) => void
-  prepareRequest?: (payload: ChatPayload, limits: ModelLimits, model: string) => Promise<BudgetedRequest>
+  prepareRequest?: (payload: ModelPayload, limits: ModelLimits, model: string) => Promise<BudgetedRequest>
 }
 export class PiHost {
   constructor(private readonly agentDir: string, private readonly getModelConfig: () => ModelConfig | null, private readonly report?: (config: ModelConfig, state: ModelState, message?: string) => void) {}
@@ -41,15 +42,17 @@ export class PiHost {
     const pi = await loadPi()
     return pi.ModelRuntime.create({ authPath: path.join(this.agentDir, 'auth.json'), modelsPath: null, refreshOnCreate: false, allowModelNetwork: false })
   }
-  async resolveLimits(config: ModelBudgetOverrides & { baseUrl: string; model: string; reasoningEffort?: ReasoningEffort }): Promise<ModelLimits> {
+  async resolveLimits(config: ModelBudgetOverrides & ModelEndpoint & { reasoningEffort?: ReasoningEffort }): Promise<ModelLimits> {
     const runtime = await this.runtime()
     return resolveModelLimits(config, runtime.getModels())
   }
-  async reasoningOptions(config: Pick<ModelConfig, 'baseUrl' | 'model' | 'reasoningEffort'>): Promise<ResolvedReasoning> {
+  async reasoningOptions(config: ModelEndpoint & Pick<ModelConfig, 'reasoningEffort'>): Promise<ResolvedReasoning> {
     return resolveReasoning({ ...config, reasoningEffort: 'auto' }, (await this.runtime()).getModels())
   }
   async createSession(opts: PiSessionOptions): Promise<AgentSession> {
     const cfg = opts.modelConfig ?? this.configuration()
+    const protocol = cfg.protocol ?? DEFAULT_MODEL_PROTOCOL
+    if (!MODEL_PROTOCOLS.includes(protocol)) throw new JotError('INVALID_INPUT', '模型接口协议不受支持')
     const pi = await loadPi()
     await fs.promises.mkdir(this.agentDir, { recursive: true })
     const modelRuntime = await this.runtime(), models = modelRuntime.getModels()
@@ -58,11 +61,12 @@ export class PiHost {
     const known = trustedModel(cfg, models)
     const limits = resolveModelLimits({ ...cfg, reasoningEffort: reasoning.requested }, models)
     modelRuntime.registerProvider(PROVIDER, {
-      baseUrl: cfg.baseUrl, api: 'openai-completions', apiKey: 'set-at-runtime',
+      baseUrl: protocolBaseUrl(cfg), api: protocol, apiKey: 'set-at-runtime',
       models: [{ id: cfg.model, name: cfg.model, contextWindow: limits.contextWindow, maxTokens: limits.maxOutputTokens,
         reasoning: known?.reasoning ?? true, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
         ...(known?.thinkingLevelMap ? { thinkingLevelMap: known.thinkingLevelMap } : {}),
-        compat: { ...(known?.api === 'openai-completions' ? known.compat ?? {} : { thinkingFormat: 'openai' as const, supportsReasoningEffort: true }) },
+        ...(known?.api === protocol && known.compat ? { compat: known.compat }
+          : protocol === 'openai-completions' ? { compat: { thinkingFormat: 'openai' as const, supportsReasoningEffort: true } } : {}),
       }],
     })
     await modelRuntime.setRuntimeApiKey(PROVIDER, cfg.apiKey || 'none')
@@ -100,11 +104,12 @@ export class PiHost {
       const original = await previousPayload?.(payload, requestModel) ?? payload
       const adapted = reasoning.requested === 'auto' ? cleanReasoningPayload(original as Record<string, unknown>) : original
       const request = opts.prepareRequest
-        ? await opts.prepareRequest(adapted as ChatPayload, limits, cfg.model)
-        : fitModelRequest(adapted as ChatPayload, opts.history ?? [], limits, cfg.model)
+        ? await opts.prepareRequest(adapted as ModelPayload, limits, cfg.model)
+        : fitModelRequest(adapted as ModelPayload, opts.history ?? [], limits, cfg.model)
       opts.onBudget?.(request.budget)
       if (request.error) throw new JotError('LLM_CONTEXT_LIMIT', request.error)
-      const outputField = 'max_tokens' in request.payload ? 'max_tokens' : 'max_completion_tokens'
+      const outputField = protocol === 'openai-responses' ? 'max_output_tokens'
+        : protocol === 'anthropic-messages' || 'max_tokens' in request.payload ? 'max_tokens' : 'max_completion_tokens'
       const final = { ...request.payload, [outputField]: limits.maxOutputTokens }
       sent = sentReasoning(reasoning, final)
       if (reasoning.requested !== 'auto' && !sent.parameters) throw new JotError('INVALID_INPUT', '当前模型适配未生成所选推理强度参数，请改用模型默认或支持的档位。')

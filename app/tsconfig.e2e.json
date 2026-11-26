@@ -17,6 +17,7 @@
     "shared/**/*.ts",
     "src/env.d.ts",
     "playwright.config.ts",
-    "playwright.packed.config.ts"
+    "playwright.packed.config.ts",
+    "playwright.chrome.config.ts"
   ]
 }

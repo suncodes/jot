@@ -2,7 +2,7 @@ import type { WorkReportProfiles } from '@shared/work-reports'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { ZodError } from 'zod'
-import metadata from '../../package.json'
+import metadata from '../../package.json' with { type: 'json' }
 import type { AppExtensionCatalog, AppExtensionConfiguration, AppExtensionImportPreview, AppExtensionImportRequest, AppExtensionManifest, AppExtensionPackage, AppExtensionProfile, AppExtensionProfileInput, ManagedAppExtension, NoteTemplate, ProfileShortcutInput, ShortcutConfiguration } from '@shared/app-extensions'
 import { extensionTemplates } from '@shared/app-extensions'
 import { extensionCommandId, isAppExtensionId, type CommandAvailability } from '@shared/commands'

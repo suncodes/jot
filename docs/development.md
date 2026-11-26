@@ -21,6 +21,8 @@ pnpm dev
 | `pnpm typecheck` | 主进程、共享契约、测试与 Vue 类型检查 |
 | `pnpm lint` | 静态检查 |
 | `pnpm test:release` | 开源发行入口和相关文件、设置、技能的定向回归 |
+| `pnpm exec vitest run tests/unit/model-protocols.test.ts` | Responses、Anthropic 原生流式、工具、推理、预算及压缩 |
+| `pnpm test:chrome` | 使用本机 Chrome 验证模型协议表单与窄窗布局 |
 | `pnpm exec vitest run tests/unit/work-reports.test.ts` | 指定业务单元 |
 | `pnpm build` | 主进程、预加载和界面构建 |
 | `pnpm exec playwright test --config playwright.packed.config.ts open-source-release.spec.ts` | 现有发行包的隔离冒烟 |
@@ -29,6 +31,8 @@ pnpm dev
 | `pnpm licenses:generate` / `pnpm licenses:check` | 生成／核对第三方版权清单 |
 
 改动文件工具就测试实际文件读写、范围和结果；改动设置就测试持久化与失败路径；UI 改动选相关 Electron 场景。只在新风险或失败需要时扩大范围，不默认运行所有历史用例或真实模型验证。
+
+`test:chrome` 使用已安装的 Google Chrome，不使用 Edge；自动查找常见安装位置，也可通过 `JOT_CHROME_EXE` 指定 `chrome.exe`。表单通过隔离后端连接本地假模型，不读取真实模型密钥或笔记库。
 
 `app/tests/` 中包含不同阶段的场景；默认 `pnpm test` 会收集全部单元，不能将历史用例直接等同当前发布门槛。当前发行验证入口为 `test:release` 和指定发布冒烟，见 [测试说明](../app/tests/README.md)。
 

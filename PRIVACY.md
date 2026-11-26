@@ -12,7 +12,7 @@ Jot 将笔记库保存在你选择的本地目录。Markdown、附件、摘要�
 
 ## 何时发送模型请求
 
-Jot 没有自己的模型代理服务。AI 请求直接发往你配置的模型服务。服务的保留、训练、日志和跨境策略由该服务决定。
+Jot 没有自己的模型代理服务。AI 请求按你选择的 OpenAI Chat Completions、OpenAI Responses 或 Anthropic Messages 协议，直接发往配置的模型服务。Responses 请求设置 `store: false`；服务的实际保留、训练、日志和跨境策略仍由该服务决定。
 
 以下功能可能发送内容：
 
