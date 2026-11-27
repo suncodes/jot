@@ -6,6 +6,7 @@ import { createServer } from 'vite'
 import { test, expect } from '../chrome/fixtures'
 import { testApp } from '../helpers/test-app'
 import { startProtocolLlm } from '../helpers/fake-protocols'
+import { startModelList } from '../helpers/fake-models'
 import type { Channel } from '../../shared/ipc'
 import { selectOption } from './helpers'
 
@@ -181,3 +182,62 @@ test('Chrome：标签右键按左右及其他关闭，保存失败保留标签�
     await expect(page.getByTestId('agent-model')).toHaveAttribute('data-value', 'follow')
   } finally { await fixtureApp.close() }
 })
+for (const protocol of ['openai-responses', 'anthropic-messages'] as const) {
+  test('Chrome：' + protocol + ' 获取模型、搜索多选、去重、草稿保存与手动添加', async ({ page }) => {
+    const fixtureApp = await fixture(), { app } = fixtureApp
+    const models = await startModelList(() => ({ body: { data: [
+      { id: 'fake', display_name: '已配置模型' }, { id: 'vendor/alpha', display_name: 'Alpha 模型' },
+      { id: 'vendor/beta', display_name: 'Beta 模型' }, { id: 'vendor/gamma', display_name: 'Gamma 模型' },
+    ] } }))
+    const before = app.core.settings.get().models
+    try {
+      await page.goto(fixtureApp.url)
+      await selectOption(page, 'model-protocol', protocol)
+      await page.getByTestId('model-base-url').fill(models.baseUrl)
+      await page.getByTestId('model-api-key').fill('discovery-unsaved-key')
+      await page.getByTestId('model-fetch').click()
+      await expect(page.locator('[data-discovered-model]')).toHaveCount(4)
+      const search = page.getByTestId('model-discovery-search')
+      await expect(page.getByRole('checkbox', { name: 'fake', exact: true })).toBeDisabled()
+      await expect(page.getByRole('checkbox', { name: 'fake', exact: true })).toBeChecked()
+      expect(app.core.settings.get().models).toEqual(before)
+      await search.fill('alpha')
+      await expect(page.locator('[data-discovered-model]')).toHaveCount(1)
+      await page.getByTestId('model-discovery-select-visible').click()
+      await search.fill('Beta')
+      await page.getByRole('checkbox', { name: 'vendor/beta', exact: true }).check()
+      await search.fill('no-match')
+      await expect(page.getByText('没有匹配的模型', { exact: true })).toBeVisible()
+      await search.clear()
+      await expect(page.getByTestId('model-discovery-add')).toContainText('2')
+      await page.setViewportSize({ width: 420, height: 900 })
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+      expect(await page.locator('.discovery-item').first().evaluate(element => getComputedStyle(element).display)).toBe('flex')
+      await page.screenshot({ path: test.info().outputPath('model-discovery.png'), fullPage: true })
+      await page.getByTestId('model-discovery-add').click()
+      await expect(page.getByTestId('model-discovery')).toHaveCount(0)
+      expect(app.core.settings.get().models).toEqual(before)
+      await page.getByTestId('model-save').click()
+      await expect.poll(() => app.core.settings.get().models.channels[0]!.models.length).toBe(3)
+      expect(app.core.settings.get().models.defaultModelId).toBe(before.defaultModelId)
+      expect(app.core.settings.get().models.channels[0]!.models.map(model => model.model)).toEqual(['fake', 'vendor/alpha', 'vendor/beta'])
+      await page.getByTestId('model-fetch').click()
+      await expect(page.getByRole('checkbox', { name: 'vendor/alpha', exact: true })).toBeDisabled()
+      await expect(page.getByRole('checkbox', { name: 'vendor/beta', exact: true })).toBeDisabled()
+      await page.getByRole('checkbox', { name: 'vendor/gamma', exact: true }).check()
+      await page.getByRole('dialog', { name: '获取模型' }).getByRole('button', { name: '取消', exact: true }).click()
+      expect(app.core.settings.get().models.channels[0]!.models).toHaveLength(3)
+      models.setResponder(() => ({ status: 404, body: { error: 'fixture-only' } }))
+      await page.getByTestId('model-fetch').click()
+      await expect(page.getByTestId('model-discovery-error')).toContainText('HTTP 404')
+      await page.getByRole('dialog', { name: '获取模型' }).getByRole('button', { name: '取消', exact: true }).click()
+      await page.getByTestId('model-add').click()
+      await page.getByTestId('model-name').fill('manual-model')
+      await page.getByTestId('model-save').click()
+      await expect.poll(() => app.core.settings.get().models.channels[0]!.models.length).toBe(4)
+      expect(new URL(models.requests[0]!.url, models.baseUrl).pathname).toBe('/v1/models')
+      if (protocol === 'anthropic-messages') expect(models.requests[0]!.headers['x-api-key']).toBe('discovery-unsaved-key')
+      else expect(models.requests[0]!.headers.authorization).toBe('Bearer discovery-unsaved-key')
+    } finally { await models.close(); await fixtureApp.close() }
+  })
+}

@@ -1,4 +1,4 @@
-import { modelCatalogInput, modelId } from '../settings/model-schema'
+import { modelCatalogInput, modelDiscoveryInput, modelId } from '../settings/model-schema'
 import { REASONING_EFFORTS } from '@shared/reasoning'
 import { MODEL_PROTOCOLS } from '@shared/model-protocol'
 import { z, type ZodType } from 'zod'
@@ -223,6 +223,7 @@ export const argSchemas: Record<Channel, ZodType> = {
       .partial()
       .optional(),
   }).strict(),
+  'settings:discoverModels': modelDiscoveryInput,
   'settings:testModel': z.object({ modelId: modelId, channelId: modelId, baseUrl: z.string(), apiKey: z.string(), model: z.string(), reasoningEffort, protocol: z.enum(MODEL_PROTOCOLS),
     contextWindow: z.number().int().min(MODEL_BUDGET_BOUNDS.contextWindow.min).max(MODEL_BUDGET_BOUNDS.contextWindow.max).nullable(), compactionThreshold }).partial().strict(),
 }

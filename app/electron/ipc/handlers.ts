@@ -1,3 +1,4 @@
+import { discoverModels } from '../llm/model-discovery'
 import type { OperationPlatform } from '../operations/service'
 import { JotError } from '@shared/result'
 import type { AppInfo, FolderChange } from '@shared/types'
@@ -65,6 +66,7 @@ export function createHandlers(core: Core, platform: Platform): Handlers {
     'shortcuts:set': input => core.commands.saveShortcuts(input),
     'settings:modelBudget': input => core.pi.resolveLimits(input),
     'settings:reasoning': input => core.pi.reasoningOptions(input),
+    'settings:discoverModels': input => discoverModels({ ...input, apiKey: input.apiKey ?? (input.channelId ? core.settings.channelKey(input.channelId) : undefined) }),
     'settings:testModel': ({ modelId, channelId, contextWindow, ...override }) => {
       const saved = modelId ? core.settings.getModelConfig(modelId) : null
       const apiKey = channelId ? core.settings.channelKey(channelId) : saved?.apiKey

@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { Plus, Trash2, Check } from 'lucide-vue-next'
+import { Plus, Trash2, Check, Download } from 'lucide-vue-next'
 import { call } from '@/api'
 import { useAppStore } from '@/stores/app'
 import { t } from '@/strings'
 import AppSelect from '@/components/AppSelect.vue'
 import AppDialog from '@/components/AppDialog.vue'
+import ModelDiscoveryDialog from '@/components/ModelDiscoveryDialog.vue'
+import type { DiscoveredModel } from '@shared/model-discovery'
 import ModelProfileEditor from '@/components/ModelProfileEditor.vue'
 import { DEFAULT_MODEL_PROTOCOL, MODEL_PROTOCOLS } from '@shared/model-protocol'
 import { modelOptions, type ModelCatalogInput, type ModelProfile } from '@shared/models'
@@ -28,6 +30,8 @@ const globalDefault = computed({ get: () => draft.value.defaultModelId ?? '', se
 const saving = ref(false), testing = ref(false), saved = ref(false), error = ref('')
 const result = ref<{ ok: boolean; text: string } | null>(null)
 const removing = ref<'channel' | 'model' | null>(null)
+const discovering = ref(false)
+watch([selectedChannel, () => channel.value?.protocol, () => channel.value?.baseUrl, () => channel.value?.apiKey], () => { discovering.value = false })
 const baseline = ref(JSON.stringify(draft.value))
 watch(selectedChannel, () => { selectedModel.value = channel.value?.models[0]?.id ?? ''; result.value = null }, { immediate: true })
 watch(selectedModel, () => { result.value = null })
@@ -43,6 +47,18 @@ function addChannel(): void {
   selectedChannel.value = id; selectedModel.value = model.id
 }
 function addModel(): void { const model = emptyModel(); channel.value?.models.push(model); selectedModel.value = model.id }
+function addDiscovered(models: DiscoveredModel[]): void {
+  const current = channel.value
+  if (!current) return
+  const present = new Set(current.models.map(model => model.model))
+  const additions = models.filter(model => !present.has(model.id))
+  const configured = current.models.filter(model => model.model || model.name)
+  if (configured.length + additions.length > 100) { error.value = '每个渠道最多配置 100 个模型'; return }
+  const added = additions.map(model => ({ ...emptyModel(), model: model.id, name: model.name }))
+  current.models = [...configured, ...added]
+  if (added[0]) selectedModel.value = added[0].id
+  discovering.value = false
+}
 function connectionChanged(): void {
   for (const model of channel.value?.models ?? []) { delete model.contextWindow; model.reasoningEffort = 'auto' }
   result.value = null
@@ -101,7 +117,7 @@ if (!draft.value.channels.length) addChannel()
         <div class="model-field"><span>接口协议</span><AppSelect v-model="channel.protocol" :options="protocolOptions" label="接口协议" data-testid="model-protocol" @update:model-value="connectionChanged" /></div>
         <label><span>基础地址</span><input v-model="channel.baseUrl" type="text" :placeholder="channel.protocol === 'anthropic-messages' ? 'https://api.anthropic.com' : 'https://api.openai.com/v1'" data-testid="model-base-url" @change="connectionChanged" /></label>
         <label><span>密钥</span><input v-model="channelKeyInput" type="password" :placeholder="savedChannel?.hasApiKey ? '已保存，留空保留；清除请点右侧' : '填写渠道 API Key'" data-testid="model-api-key" /><button v-if="savedChannel?.hasApiKey" class="ghost clear-key" @click="channel.apiKey = ''">清除</button></label>
-        <div class="models-heading"><strong>模型</strong><button class="ghost" data-testid="model-add" @click="addModel"><Plus :size="14" />添加模型</button></div>
+        <div class="models-heading"><strong>模型</strong><div class="model-entry-actions"><button class="ghost" data-testid="model-fetch" :disabled="!channel.baseUrl.trim()" @click="discovering = true"><Download :size="14" />获取模型</button><button class="ghost" data-testid="model-add" @click="addModel"><Plus :size="14" />手动添加</button></div></div>
         <div class="model-list" role="list" aria-label="渠道模型">
           <button v-for="item in channel.models" :key="item.id" class="ghost model-item" :class="{ selected: item.id === selectedModel }" :data-model-id="item.id" @click="selectedModel = item.id"><span>{{ item.name || item.model || '新模型' }}</span><Check v-if="draft.defaultModelId === item.id" :size="12" aria-label="全局默认" /></button>
         </div>
@@ -116,6 +132,7 @@ if (!draft.value.channels.length) addChannel()
       <p v-else class="small muted">添加一个渠道，配置接口及可用模型。</p>
     </div>
     <footer class="catalog-save"><button class="primary" data-testid="model-save" :disabled="saving || testing" @click="save">保存配置</button><span v-if="saved" class="small muted">已保存</span><span v-if="error" class="small bad" role="alert" data-testid="model-save-error">{{ error }}</span></footer>
+    <ModelDiscoveryDialog v-if="discovering && channel" :connection="{ channelId: savedChannel?.id, protocol: channel.protocol, baseUrl: channel.baseUrl, apiKey: channel.apiKey }" :existing="channel.models" @add="addDiscovered" @close="discovering = false" />
     <AppDialog v-if="removing" :title="removing === 'channel' ? '删除渠道' : '删除模型'" @close="removing = null"><p>从配置中移除{{ removing === 'channel' ? '该渠道及其模型' : '该模型' }}，保存后生效。已有对话记录保留，使用该模型的对话需重新选择。</p><template #footer><button class="ghost" @click="removing = null">取消</button><button class="danger" data-testid="model-remove-confirm" @click="remove">确认移除</button></template></AppDialog>
   </div>
 </template>
@@ -136,6 +153,7 @@ label, .model-field { display:grid; grid-template-columns:88px minmax(0, 1fr); a
 input { min-width:0; width:100%; }
 .clear-key { position:absolute; right:4px; font-size:11px; }
 label:has(.clear-key) input { padding-right:40px; }
+.model-entry-actions { display:flex; align-items:center; gap:var(--space-2); }
 .models-heading { margin-top:var(--space-2); border-top:1px solid var(--border); padding-top:var(--space-3); }
 .model-list { display:flex; flex-wrap:wrap; gap:var(--space-1); }
 .model-item { display:flex; align-items:center; gap:var(--space-1); max-width:100%; font-size:var(--font-size-small); }

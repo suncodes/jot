@@ -4,6 +4,18 @@ import { MODEL_BUDGET_BOUNDS } from '@shared/model-budget'
 import { REASONING_EFFORTS } from '@shared/reasoning'
 
 export const modelId = z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/)
+export const modelBaseUrl = z.string().trim().url().refine(value => {
+  try {
+    const url = new URL(value)
+    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash
+  } catch { return false }
+}, '请填写不含凭证或查询参数的 HTTP(S) 基础地址')
+export const modelDiscoveryInput = z.object({
+  channelId: modelId.optional(),
+  protocol: z.enum(MODEL_PROTOCOLS),
+  baseUrl: modelBaseUrl,
+  apiKey: z.string().max(16000).optional(),
+}).strict()
 export const modelBudgetFields = {
   contextWindow: z.number().int().min(MODEL_BUDGET_BOUNDS.contextWindow.min).max(MODEL_BUDGET_BOUNDS.contextWindow.max).optional(),
   compactionThreshold: z.union([z.literal(0.6), z.literal(0.7), z.literal(0.8)]).optional(),
@@ -14,12 +26,7 @@ export const modelCatalogInput = z.object({
     id: modelId,
     name: z.string().trim().min(1).max(100),
     protocol: z.enum(MODEL_PROTOCOLS),
-    baseUrl: z.string().trim().url().refine(value => {
-      try {
-        const url = new URL(value)
-        return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash
-      } catch { return false }
-    }, '请填写不含凭证或查询参数的 HTTP(S) 基础地址'),
+    baseUrl: modelBaseUrl,
     apiKey: z.string().max(16000).optional(),
     models: z.array(z.object({
       id: modelId, name: z.string().trim().max(100), model: z.string().trim().min(1).max(200), ...modelBudgetFields,

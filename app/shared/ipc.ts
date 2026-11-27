@@ -163,6 +163,7 @@ export interface IpcContract {
   'settings:reasoning': { args: import('./model-protocol').ModelEndpoint; result: ResolvedReasoning }
   'settings:modelBudget': { args: import('./model-protocol').ModelEndpoint & { contextWindow?: number; compactionThreshold?: CompactionThreshold; reasoningEffort?: ReasoningEffort }; result: ResolvedModelBudget }
   'settings:set': { args: SettingsInput; result: Settings }
+  'settings:discoverModels': { args: import('./model-discovery').ModelDiscoveryInput; result: import('./model-discovery').ModelDiscoveryResult }
   'settings:testModel': { args: { modelId?: string; channelId?: string; protocol?: import('./model-protocol').ModelProtocol; baseUrl?: string; apiKey?: string; model?: string; reasoningEffort?: ReasoningEffort; contextWindow?: number | null; compactionThreshold?: CompactionThreshold }; result: ModelTestResult }
 }
 
@@ -214,7 +215,7 @@ export const CHANNELS: readonly Channel[] = [
   'capabilities:setPluginEnabled', 'capabilities:previewPluginImport', 'capabilities:confirmPluginImport', 'capabilities:cancelPluginImport',
   'capabilities:changeAgent', 'capabilities:changeSkill', 'capabilities:previewSkillImport', 'capabilities:confirmSkillImport', 'capabilities:cancelSkillImport', 'capabilities:runs', 'capabilities:removeRun', 'capabilities:catalog', 'agent:conversations', 'agent:create', 'agent:get', 'agent:send', 'agent:setModel', 'agent:setReasoning', 'agent:confirm', 'agent:abort', 'agent:rename', 'agent:delete', 'agent:export',
   'jobs:list', 'jobs:retry', 'jobs:cancel',
-  'settings:get', 'settings:set', 'settings:testModel', 'settings:modelBudget', 'settings:reasoning',
+  'settings:get', 'settings:set', 'settings:discoverModels', 'settings:testModel', 'settings:modelBudget', 'settings:reasoning',
 ]
 
 export const EVENTS: readonly EventName[] = ['library:pinsChanged', 'commands:changed', 'extensions:changed', 'storage:changed', 'vault:changed', 'doc:updated', 'inbox:count', 'jobs:updated', 'files:changed', 'agent:event', 'agent:changed', 'taxonomy:changed', 'settings:changed', 'capabilities:changed', 'model:status', 'capture:shown', 'hotkey:conflict']
