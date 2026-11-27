@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { AgentEvent } from '../../shared/types'
 import { agentScript, chunkIds, isAgentRequest } from '../helpers/fake-llm'
@@ -23,13 +24,13 @@ afterEach(async () => { await app.close() })
 describe('助手输入预算与历史持久化', () => {
   it('较大模型保留超过十二条和两千字历史，小模型缩减完整问答，重启和切换大模型恢复可用历史', async () => {
     const id = app.core.agent.create().conversationId
-    await app.call('settings:set', { model: { baseUrl: app.fake.baseUrl, model: 'large', apiKey: 'fake', contextWindow: 65536 } })
+    await app.call('settings:set', { ...modelSettings({ baseUrl: app.fake.baseUrl, model: 'large', apiKey: 'fake', contextWindow: 65536 }, app.core.settings.get()) })
     for (let i = 0; i < 8; i++) await ask(id, '第' + i + '轮开头' + '历史'.repeat(1100) + '尾部证据' + i)
     const last = app.fake.requests.filter(isAgentRequest).at(-1)!
     expect(JSON.stringify(last.messages)).toContain('尾部证据0')
     expect(JSON.stringify(last.messages)).toContain('第6轮开头')
     expect(app.core.agent.get(id).messages).toHaveLength(16)
-    await app.call('settings:set', { model: { model: 'small', contextWindow: 20480 } })
+    await app.call('settings:set', { ...modelSettings({ model: 'small', contextWindow: 20480 }, app.core.settings.get()) })
     const small = await ask(id, '继续讨论')
     expect(small.error).toBeUndefined()
     expect(small.budget).toMatchObject({ model: 'small', contextWindow: 20480, blocked: false })
@@ -40,7 +41,7 @@ describe('助手输入预算与历史持久化', () => {
     expect(app.core.agent.get(id).messages[0]!.text).toContain('尾部证据0')
     await app.reopen()
     expect(app.core.agent.get(id).messages.at(-1)!.budget).toEqual(small.budget)
-    await app.call('settings:set', { model: { model: 'large', contextWindow: 65536 } })
+    await app.call('settings:set', { ...modelSettings({ model: 'large', contextWindow: 65536 }, app.core.settings.get()) })
     const large = await ask(id, '大窗口继续')
     expect(large.budget?.omittedHistoryTurns).toBe(0)
     expect(JSON.stringify(app.fake.requests.filter(isAgentRequest).at(-1)!.messages)).toContain('尾部证据0')
@@ -69,7 +70,7 @@ describe('助手输入预算与历史持久化', () => {
   it('累计材料超限以明确错误结束，完整工具过程可查，用户改为分段读取后可继续', async () => {
     const id = app.core.agent.create().conversationId
     app.write('content/工作/大材料.md', Array.from({ length: 100 }, (_, i) => '第' + i + '行 ' + '材料'.repeat(70)).join('\n'))
-    await app.call('settings:set', { model: { baseUrl: app.fake.baseUrl, model: 'small', apiKey: 'fake', contextWindow: 28672 } })
+    await app.call('settings:set', { ...modelSettings({ baseUrl: app.fake.baseUrl, model: 'small', apiKey: 'fake', contextWindow: 28672 }, app.core.settings.get()) })
     app.fake.setResponder(agentScript([
       () => ({ toolCall: { name: 'read', arguments: { path: 'content/工作/大材料.md' } } }),
       () => ({ toolCall: { name: 'read', arguments: { path: 'content/工作/大材料.md', lineStart: 50 } } }),

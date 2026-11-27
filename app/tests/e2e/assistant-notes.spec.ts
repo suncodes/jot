@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { ChatMessage } from '../../shared/types'
@@ -22,7 +23,7 @@ test.afterEach(async () => { await fake.close() })
 
 test('两目录周报先预览，编辑后选择目录保存，出处可跳原文，同名另存且删除会话后仍有效', async ({ jot }) => {
   const { page, call, write, vault } = jot
-  await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' } })
+  await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' }, await call('settings:get', undefined)) })
   write(first, '---\ncreated: 2026-11-18\n---\n2026-11-18：项目甲完成接口联调。\n')
   write(second, '---\ncreated: 2026-11-19\n---\n2026-11-19：项目乙正在验证性能；下周安排压测。\n')
   fs.mkdirSync(path.join(vault, reportDir), { recursive: true })
@@ -95,7 +96,7 @@ test('两目录周报先预览，编辑后选择目录保存，出处可跳原�
 
 test('草稿取消不落盘，保存失败保留修改可重试，深色窄窗和重新选择目录正常', async ({ jot }) => {
   const { page, call, launched, vault } = jot
-  await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' } })
+  await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' }, await call('settings:get', undefined)) })
   fake.setResponder(agentScript([() => '# 可编辑草稿\n\n这是需要人工确认的正文。']))
   await page.keyboard.press('Control+l')
   const agent = page.getByTestId('agent')
@@ -141,7 +142,7 @@ test('草稿取消不落盘，保存失败保留修改可重试，深色窄窗�
 
 test('重启后历史回答仍可预览并另存为笔记', async ({ jot }) => {
   const { page, call, write, vault, launched } = jot
-  await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' } })
+  await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' }, await call('settings:get', undefined)) })
   write(first, '项目甲完成接口联调。')
   write(second, '项目乙进行性能验证。')
   await call('vault:refreshIndex', {})

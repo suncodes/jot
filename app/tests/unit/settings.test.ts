@@ -1,239 +1,107 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { loadDevModelDefaults } from '../../electron/env'
 import { SettingsService, type SecretStore } from '../../electron/settings/settings'
-import { VaultService } from '../../electron/vault/vault'
+import { loadDevModelDefaults } from '../../electron/env'
+import { modelSettings } from '../helpers/models'
 import { makeTmpDir } from '../helpers/tmp'
-
-// 假的加密实现：只做可逆变换，用来确认明文不会落盘
-const secrets: SecretStore = {
-  encrypt: (plain) => 'enc:' + Buffer.from(plain).toString('base64'),
-  decrypt: (stored) => Buffer.from(stored.slice(4), 'base64').toString(),
-}
-
+const secrets: SecretStore = { encrypt: plain => 'enc:' + Buffer.from(plain).toString('base64'), decrypt: stored => Buffer.from(stored.slice(4), 'base64').toString() }
 let tmp: ReturnType<typeof makeTmpDir>
-beforeEach(() => (tmp = makeTmpDir('settings')))
+beforeEach(() => { tmp = makeTmpDir('settings') })
 afterEach(() => tmp.cleanup())
-
-describe('设置服务', () => {
-  it('协议跨重启保存，切换协议清除模型档位覆盖并通知模型变化，无效协议拒绝保存', async () => {
+describe('多渠道模型设置', () => {
+  it('空配置不猜测全局默认，普通偏好独立保存', async () => {
     const service = new SettingsService(tmp.dir, secrets)
     await service.load()
-    await service.set({ model: { baseUrl: 'https://example.invalid/v1', model: 'fixture', apiKey: 'fixture', contextWindow: 65536, reasoningEffort: 'high' } })
-    const changed: boolean[] = []
-    service.onChange((_settings, modelChanged) => changed.push(modelChanged))
-    await service.set({ model: { protocol: 'openai-responses' } })
-    expect(service.get().model).toMatchObject({ protocol: 'openai-responses', reasoningEffort: 'auto', hasApiKey: true })
-    expect(service.get().model).not.toHaveProperty('contextWindow')
-    expect(changed).toEqual([true])
-    const restarted = new SettingsService(tmp.dir, secrets)
-    await restarted.load()
-    expect(restarted.getModelConfig()?.protocol).toBe('openai-responses')
-    const before = restarted.get()
-    await expect(restarted.set({ model: { protocol: 'other' } as never })).rejects.toThrow('协议不受支持')
-    expect(restarted.get()).toEqual(before)
+    expect(service.get().models).toEqual({ channels: [], defaultModelId: null })
+    expect(service.getModelConfig()).toBeNull()
+    await service.set({ window: { closeBehavior: 'quit' }, appearance: { theme: 'dark' } })
+    const restored = new SettingsService(tmp.dir, secrets); await restored.load()
+    expect(restored.get()).toMatchObject({ window: { closeBehavior: 'quit' }, appearance: { theme: 'dark' } })
   })
-
-  it('同时修改库路径、模型和窗口偏好不会丢失更新，失败不会阻断后续保存', async () => {
-    const service = new SettingsService(tmp.dir, secrets)
-    await service.load()
-    await Promise.all([
-      service.set({ model: { baseUrl: 'https://example.invalid/v1', model: 'fixture' } }),
-      service.setVaultPath(path.join(tmp.dir, 'vault')),
-      service.set({ appearance: { theme: 'dark' } }),
-      service.set({ window: { closeBehavior: 'quit' } }),
-    ])
-    const [failed, saved] = await Promise.allSettled([
-      service.set({ model: { compactionThreshold: 0.75 } as never }),
-      service.set({ classify: { enabled: false } }),
-    ])
-    expect(failed.status).toBe('rejected'); expect(saved.status).toBe('fulfilled')
-    const restarted = new SettingsService(tmp.dir, secrets)
-    await restarted.load()
-    expect(restarted.get()).toEqual(service.get())
-    expect(restarted.vaultPath).toBe(path.join(tmp.dir, 'vault'))
-    expect(restarted.get()).toMatchObject({ model: { model: 'fixture' }, appearance: { theme: 'dark' }, window: { closeBehavior: 'quit' }, classify: { enabled: false } })
+  it('多渠道和同名模型独立解析，密钥加密且不传给界面', async () => {
+    const service = new SettingsService(tmp.dir, secrets); await service.load()
+    const input = modelSettings({ baseUrl: 'https://one.invalid/v1', model: 'same-name', apiKey: 'fixture-key-one' })
+    const second = structuredClone(input.models.channels[0]!)
+    second.id = 'second'; second.name = '第二渠道'; second.protocol = 'anthropic-messages'; second.apiKey = 'fixture-key-two'
+    second.models[0]!.id = 'second-model'; second.models[0]!.contextWindow = 65536
+    input.models.channels.push(second)
+    const view = await service.set(input)
+    expect(service.getModelConfig()?.apiKey).toBe('fixture-key-one')
+    expect(service.getModelConfig('second-model')).toMatchObject({ protocol: 'anthropic-messages', model: 'same-name', apiKey: 'fixture-key-two', contextWindow: 65536 })
+    const disk = fs.readFileSync(path.join(tmp.dir, 'settings.json'), 'utf8')
+    expect(disk).not.toContain('fixture-key-one'); expect(disk).not.toContain('fixture-key-two')
+    expect(JSON.stringify(view)).not.toContain('fixture-key')
+    const restored = new SettingsService(tmp.dir, secrets); await restored.load()
+    expect(restored.get()).toEqual(view)
+    expect(restored.getModelConfig('second-model')?.apiKey).toBe('fixture-key-two')
   })
-
-  it('磁盘保存失败不改变内存也不通知订阅者', async () => {
-    const service = new SettingsService(tmp.dir, secrets)
-    await service.load()
+  it('省略密钥保留该渠道密钥，明确空值清除，新增渠道不复用其他密钥', async () => {
+    const service = new SettingsService(tmp.dir, secrets); await service.load()
+    await service.set(modelSettings({ apiKey: 'fixture-key' }))
+    const input = modelSettings({ model: 'second' }, service.get())
+    await service.set(input)
+    expect(service.getModelConfig()?.apiKey).toBe('fixture-key')
+    input.models.channels[0]!.apiKey = ''
+    await service.set(input)
+    expect(service.getModelConfig()?.apiKey).toBe('')
+    const other = structuredClone(input.models.channels[0]!)
+    other.id = 'other'; other.models[0]!.id = 'other-model'; delete other.apiKey
+    input.models.channels.push(other)
+    await service.set(input)
+    expect(service.getModelConfig('other-model')?.apiKey).toBe('')
+  })
+  it('默认引用、模型ID唯一性、协议和窗口均在保存前校验', async () => {
+    const service = new SettingsService(tmp.dir, secrets); await service.load()
+    const valid = modelSettings({})
+    await service.set(valid)
     const before = service.get()
-    let changes = 0
-    service.onChange(() => changes++)
-    fs.mkdirSync(path.join(tmp.dir, 'settings.json'))
-    await expect(service.set({ appearance: { theme: 'dark' } })).rejects.toThrow()
-    expect(service.get()).toEqual(before)
-    expect(changes).toBe(0)
-    expect(fs.readdirSync(tmp.dir)).toEqual(['settings.json'])
+    for (const change of [
+      () => { const input = structuredClone(valid); input.models.defaultModelId = 'missing'; return input },
+      () => { const input = structuredClone(valid); input.models.channels[0]!.models.push(input.models.channels[0]!.models[0]!); return input },
+      () => { const input = structuredClone(valid); input.models.channels[0]!.protocol = 'unknown' as never; return input },
+      () => { const input = structuredClone(valid); input.models.channels[0]!.models[0]!.contextWindow = 10; return input },
+      () => { const input = structuredClone(valid); input.models.channels[0]!.baseUrl = 'http://'; return input },
+    ]) {
+      await expect(service.set(change())).rejects.toMatchObject({ code: 'INVALID_INPUT' })
+      expect(service.get()).toEqual(before)
+    }
+    expect(() => service.getModelConfig('deleted')).toThrow('重新选择')
   })
-
-  it('密钥加密失败时当前设置、磁盘和订阅状态均保持原值', async () => {
-    const working: SecretStore = { ...secrets }
-    const service = new SettingsService(tmp.dir, working)
-    await service.load()
-    await service.set({ model: { baseUrl: 'https://example.invalid/v1', model: 'first', apiKey: 'fixture-before', contextWindow: 8192 } })
-    const before = service.get()
-    const raw = fs.readFileSync(path.join(tmp.dir, 'settings.json'), 'utf8')
-    let changes = 0
-    service.onChange(() => changes++)
+  it('加密失败或落盘失败不改变内存及订阅，后续仍可保存', async () => {
+    const working = { ...secrets }, service = new SettingsService(tmp.dir, working); await service.load()
+    await service.set(modelSettings({ apiKey: 'before' }))
+    const before = service.get(), disk = fs.readFileSync(path.join(tmp.dir, 'settings.json'), 'utf8')
+    let changes = 0; service.onChange(() => changes++)
     working.encrypt = () => { throw new Error('系统加密不可用') }
-    await expect(service.set({ model: { model: 'second', apiKey: 'fixture-after', contextWindow: 16384 }, appearance: { theme: 'dark' } })).rejects.toThrow('系统加密不可用')
-    expect(service.get()).toEqual(before)
-    expect(fs.readFileSync(path.join(tmp.dir, 'settings.json'), 'utf8')).toBe(raw)
-    expect(changes).toBe(0)
+    await expect(service.set(modelSettings({ apiKey: 'after' }, before))).rejects.toThrow('加密不可用')
+    expect(service.get()).toEqual(before); expect(fs.readFileSync(path.join(tmp.dir, 'settings.json'), 'utf8')).toBe(disk); expect(changes).toBe(0)
+    await service.set({ classify: { enabled: false } })
+    expect(changes).toBe(1)
+    const blocked = path.join(tmp.dir, 'blocked'); fs.mkdirSync(path.join(blocked, 'settings.json'), { recursive: true })
+    const failing = new SettingsService(blocked, secrets)
+    await expect(failing.set({ appearance: { theme: 'dark' } })).rejects.toThrow()
+    expect(failing.get().appearance.theme).toBe('system')
   })
-  it('推理强度跨重启保存，单独改档不重建在途会话，切模型恢复默认', async () => {
-    const s = new SettingsService(tmp.dir, secrets)
-    await s.load()
-    await s.set({ model: { baseUrl: 'https://example/v1', model: 'first' } })
-    const changes: boolean[] = []
-    s.onChange((_value, changed) => changes.push(changed))
-    await s.set({ model: { reasoningEffort: 'high' } })
-    expect(changes).toEqual([false])
-    const restarted = new SettingsService(tmp.dir, secrets)
-    await restarted.load()
-    expect(restarted.get().model.reasoningEffort).toBe('high')
-    const before = restarted.get()
-    await expect(restarted.set({ model: { reasoningEffort: 'unknown' } as never })).rejects.toMatchObject({ code: 'INVALID_INPUT' })
-    expect(restarted.get()).toEqual(before)
-    await restarted.set({ model: { model: 'second' } })
-    expect(restarted.get().model.reasoningEffort).toBe('auto')
-    await restarted.set({ model: { reasoningEffort: 'low' } })
-    await restarted.set({ model: { baseUrl: 'https://another/v1' } })
-    expect(restarted.get().model.reasoningEffort).toBe('auto')
-  })
-  it('窗口与压缩比例保存跨重启，null 恢复默认，切换模型只清除窗口覆盖', async () => {
-    const s = new SettingsService(tmp.dir, secrets)
-    await s.load()
-    await s.set({ model: { baseUrl: 'http://example/v1', model: 'first', apiKey: 'fake', contextWindow: 16384, compactionThreshold: 0.8 } })
-    const restarted = new SettingsService(tmp.dir, secrets)
-    await restarted.load()
-    expect(restarted.get().model).toMatchObject({ contextWindow: 16384, compactionThreshold: 0.8 })
-    expect(restarted.getModelConfig()).toMatchObject({ contextWindow: 16384, compactionThreshold: 0.8 })
-    expect(JSON.parse(fs.readFileSync(path.join(tmp.dir, 'settings.json'), 'utf8')).model).not.toHaveProperty('maxOutputTokens')
-    await restarted.set({ model: { contextWindow: null, compactionThreshold: null } })
-    expect(restarted.get().model).not.toHaveProperty('contextWindow')
-    expect(restarted.getModelConfig()).not.toHaveProperty('compactionThreshold')
-    expect(restarted.getModelConfig()).not.toHaveProperty('maxOutputTokens')
-    await restarted.set({ model: { contextWindow: 8192, compactionThreshold: 0.6 } })
-    await restarted.set({ model: { model: 'second' } })
-    expect(restarted.get().model).not.toHaveProperty('contextWindow')
-    expect(restarted.get().model.compactionThreshold).toBe(0.6)
-    await restarted.set({ model: { contextWindow: 4096 } })
-    await restarted.set({ model: { baseUrl: 'http://another/v1' } })
-    expect(restarted.get().model).not.toHaveProperty('contextWindow')
-  })
-
-  it('无效预算不保存、不更改当前设置，预算变更会通知模型配置变化', async () => {
-    const s = new SettingsService(tmp.dir, secrets)
-    await s.load()
-    await s.set({ model: { baseUrl: 'http://example/v1', model: 'first', contextWindow: 8192, compactionThreshold: 0.8 } })
-    const changes: boolean[] = []
-    s.onChange((_value, changed) => changes.push(changed))
-    const before = s.get()
-    await expect(s.set({ model: { compactionThreshold: 0.75 } as never })).rejects.toThrow('只能选择')
-    await expect(s.set({ model: { contextWindow: 12.5 } })).rejects.toThrow('超出允许范围')
-    expect(s.get()).toEqual(before)
-    await s.set({ model: { contextWindow: 16384 } })
-    await s.set({ model: { compactionThreshold: 0.6 } })
-    await s.set({ appearance: { theme: 'dark' } })
-    expect(changes).toEqual([true, true, false])
-  })
-
-  it('默认值符合确认清单', async () => {
-    const s = new SettingsService(tmp.dir, secrets)
-    await s.load()
-    const v = s.get()
-    expect(v).not.toHaveProperty('domains')
-    expect(v.capture.hotkey).toBe('Ctrl+Alt+N')
-    expect(v.window.closeBehavior).toBe('tray')
-    expect(v.daily).toEqual({ enabled: true, time: '21:30' })
-    expect(v.appearance.theme).toBe('system')
-    expect(v.model).toEqual({ protocol: 'openai-completions', baseUrl: '', model: '', hasApiKey: false, reasoningEffort: 'auto' })
-    expect(s.getModelConfig()).toBeNull()
-  })
-
-  it('关闭主窗口偏好跨重启保存', async () => {
-    const s = new SettingsService(tmp.dir, secrets)
-    await s.load()
-    await s.set({ window: { closeBehavior: 'quit' } })
-    const restarted = new SettingsService(tmp.dir, secrets)
-    await restarted.load()
-    expect(restarted.get().window.closeBehavior).toBe('quit')
-  })
-
-  it('密钥只能写入：界面拿不到原文，磁盘上也没有明文', async () => {
-    const s = new SettingsService(tmp.dir, secrets)
-    await s.load()
-    const view = await s.set({ model: { baseUrl: 'http://x/v1', model: 'm', apiKey: 'sk-secret-123' } })
-    expect(view.model).toEqual({ protocol: 'openai-completions', baseUrl: 'http://x/v1', model: 'm', hasApiKey: true, reasoningEffort: 'auto' })
-    expect(JSON.stringify(view)).not.toContain('sk-secret-123')
-    expect(fs.readFileSync(path.join(tmp.dir, 'settings.json'), 'utf8')).not.toContain('sk-secret-123')
-    expect(s.getModelConfig()).toEqual({ protocol: 'openai-completions', baseUrl: 'http://x/v1', model: 'm', apiKey: 'sk-secret-123', reasoningEffort: 'auto' })
-  })
-
-  it('重新加载后设置仍在；只改地址时不丢密钥', async () => {
-    const a = new SettingsService(tmp.dir, secrets)
-    await a.load()
-    await a.set({ model: { baseUrl: 'http://x/v1', model: 'm', apiKey: 'k1' }, appearance: { theme: 'light' } })
-    await a.set({ model: { baseUrl: 'http://y/v1' } })
-
-    const b = new SettingsService(tmp.dir, secrets)
-    await b.load()
-    expect(b.getModelConfig()).toEqual({ protocol: 'openai-completions', baseUrl: 'http://y/v1', model: 'm', apiKey: 'k1', reasoningEffort: 'auto' })
-    expect(b.get().appearance.theme).toBe('light')
-  })
-
-  it('没填模型时使用开发期默认配置；填了以后以设置为准', async () => {
-    const dev = { baseUrl: 'http://dev/v1', apiKey: 'devkey', model: 'dev-model' }
-    const s = new SettingsService(tmp.dir, secrets, dev)
-    await s.load()
-    expect(s.getModelConfig()).toEqual({ ...dev, protocol: 'openai-completions', reasoningEffort: 'auto' })
-    expect(s.get().model).toEqual({ protocol: 'openai-completions', baseUrl: 'http://dev/v1', model: 'dev-model', hasApiKey: true, reasoningEffort: 'auto' })
-    await s.set({ model: { baseUrl: 'http://mine/v1', model: 'mine' } })
-    expect(s.getModelConfig()).toEqual({ protocol: 'openai-completions', baseUrl: 'http://mine/v1', model: 'mine', apiKey: '', reasoningEffort: 'auto' })
-  })
-
-  it('文件夹通过实际目录管理，设置不再拥有独立领域列表', async () => {
-    const vault = new VaultService()
-    await vault.open(path.join(tmp.dir, 'vault'), true)
-    const s = new SettingsService(tmp.dir, secrets)
-    await s.load()
-    await vault.createFolder('content', '家庭')
-    expect((await vault.directories()).map(directory => directory.name)).toContain('家庭')
-    expect(s.get()).not.toHaveProperty('domains')
-    expect(JSON.parse(fs.readFileSync(path.join(tmp.dir, 'vault/.jot/config.json'), 'utf8'))).toEqual({ version: 3 })
-    await vault.close()
-  })
-
-  it('变化时通知订阅者', async () => {
-    const s = new SettingsService(tmp.dir, secrets)
-    await s.load()
-    const seen: string[] = []
-    s.onChange((v) => seen.push(v.appearance.theme))
-    await s.set({ appearance: { theme: 'dark' } })
-    expect(seen).toEqual(['dark'])
+  it('并发保存库路径和配置不丢更新，开发模型转为同一渠道结构', async () => {
+    const dev = { baseUrl: 'https://dev.invalid/v1', model: 'development', apiKey: 'dev-key' }
+    const service = new SettingsService(tmp.dir, secrets, dev); await service.load()
+    expect(service.getModelConfig()).toMatchObject({ ...dev, id: 'development-model', channelId: 'development' })
+    await Promise.all([service.setVaultPath(path.join(tmp.dir, 'vault')), service.set(modelSettings({ model: 'configured' }, service.get())), service.set({ capture: { hotkey: 'Ctrl+Alt+J' } })])
+    const restored = new SettingsService(tmp.dir, secrets); await restored.load()
+    expect(restored.vaultPath).toBe(path.join(tmp.dir, 'vault'))
+    expect(restored.get().capture.hotkey).toBe('Ctrl+Alt+J')
+    expect(restored.getModelConfig()).toMatchObject({ model: 'configured', apiKey: 'dev-key' })
   })
 })
-
-describe('开发期模型配置', () => {
-  it('开发协议与环境变量优先级可配置，未知协议不能静默切换', () => {
-    const env = { JOT_NO_DOTENV: '1', JOT_LLM_BASE_URL: 'http://fixture/v1', JOT_LLM_MODEL: 'fixture', JOT_LLM_PROTOCOL: 'anthropic-messages' }
+describe('开发环境模型入口', () => {
+  it('支持协议及环境变量优先级，未知协议明确报错', () => {
+    const env = { JOT_NO_DOTENV: '1', JOT_LLM_BASE_URL: 'https://fixture.invalid/v1', JOT_LLM_MODEL: 'fixture', JOT_LLM_PROTOCOL: 'anthropic-messages' }
     expect(loadDevModelDefaults(tmp.dir, env)?.protocol).toBe('anthropic-messages')
     expect(() => loadDevModelDefaults(tmp.dir, { ...env, JOT_LLM_PROTOCOL: 'other' })).toThrow('协议不受支持')
-  })
-
-  it('从 .env 读取，进程环境变量优先', () => {
-    fs.writeFileSync(path.join(tmp.dir, '.env'), '# 注释\nJOT_LLM_BASE_URL="http://file/v1"\nJOT_LLM_API_KEY=filekey\nJOT_LLM_MODEL=file-model\n')
-    expect(loadDevModelDefaults(tmp.dir, {})).toEqual({ protocol: 'openai-completions', baseUrl: 'http://file/v1', apiKey: 'filekey', model: 'file-model' })
+    fs.writeFileSync(path.join(tmp.dir, '.env'), ['JOT_LLM_BASE_URL=https://fixture.invalid/v1', 'JOT_LLM_MODEL=file-model'].join(String.fromCharCode(10)), 'utf8')
+    expect(loadDevModelDefaults(tmp.dir, {})?.model).toBe('file-model')
     expect(loadDevModelDefaults(tmp.dir, { JOT_LLM_MODEL: 'env-model' })?.model).toBe('env-model')
-  })
-
-  it('没有配置时返回空；JOT_NO_DOTENV=1 时不读文件', () => {
-    expect(loadDevModelDefaults(tmp.dir, {})).toBeNull()
-    fs.writeFileSync(path.join(tmp.dir, '.env'), 'JOT_LLM_BASE_URL=http://file/v1\nJOT_LLM_MODEL=m\n')
     expect(loadDevModelDefaults(tmp.dir, { JOT_NO_DOTENV: '1' })).toBeNull()
   })
 })

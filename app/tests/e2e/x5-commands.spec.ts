@@ -1,3 +1,4 @@
+import { defaultModel } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Page, ElectronApplication } from '@playwright/test'
@@ -196,7 +197,7 @@ test('X5：右键精确配置入口，保留模型与日记草稿，切目标需
   await expect(page.getByTestId('profile-name')).toHaveValue('X5个人日记')
   await page.getByTestId('settings-nav-model').click()
   await expect(page.getByTestId('model-name')).toHaveValue('X5未保存模型草稿')
-  expect((await call('settings:get', undefined)).model.model).toBe('')
+  expect(defaultModel((await call('settings:get', undefined))).model).toBe('')
 })
 
 test('X5：改名标识稳定，停用撤销三个入口，启用及重启恢复，卸载不影响另一包', async ({ jot }) => {

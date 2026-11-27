@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import { test, expect } from './file-fixture'
@@ -57,7 +58,7 @@ test('R8 @灵感根及年月目录可选择，严格材料在多轮和重启历�
   let resumed: Awaited<ReturnType<typeof launch>> | undefined
   const selected = 'ideas/2026/11', file = selected + '/选中.md', outside = 'content/工作/范围外.md'
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' }, await call('settings:get', undefined)) })
     write(file, '---\ncreated: 2026-11-19\ntags: [灵感标签]\n---\n本月灵感当前正文')
     write('ideas/2026/10/其他.md', '另月灵感')
     write(outside, '范围外正文')

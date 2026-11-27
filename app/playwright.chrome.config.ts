@@ -11,5 +11,5 @@ if (!chrome) throw new Error('Chrome 未安装，请通过 JOT_CHROME_EXE 指定
 export default defineConfig({
   testDir: 'tests/e2e', testMatch: 'model-protocols.chrome.spec.ts', timeout: 60000, workers: 1,
   use: { browserName: 'chromium', launchOptions: { executablePath: chrome }, headless: true, viewport: { width: 960, height: 900 } },
-  reporter: [['list']], outputDir: '../tmp/model-protocol-chrome-results',
+  reporter: [['list']], outputDir: path.join(process.env.JOT_CHROME_TEST_ROOT ?? '../tmp/chrome', 'results'),
 })

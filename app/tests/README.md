@@ -17,7 +17,9 @@ pnpm test:packed open-source-release.spec.ts
 
 `open-source-release.spec.ts` 针对实际 `dist/win-unpacked/Jot.exe`，分别使用 Chat Completions、Responses 和 Anthropic Messages，检查版权文件、完整能力资源、建库、灵感、助手读写、密钥加密及重启后的持久化。只连接测试进程提供的本地假服务。通过 `JOT_PACKED_EXE` 可以选择另一个候选包。
 
-模型表单另使用 `pnpm test:chrome` 验证协议选择、未保存连接测试、保存与重新加载、窗口和推理档位重置及窄窗布局。使用本机 Google Chrome，找不到时可设置 `JOT_CHROME_EXE` 指向 `chrome.exe`，不会回退到 Edge。`tests/chrome/` 提供真实表单入口，后端使用隔离 Core 和本地原生协议假服务。
+多渠道模型配置和会话路由由 multi-models.test.ts 定向覆盖，包括跨协议历史延续、在途工具快照、默认继承、删除后明确报错和会话压缩模型。
+
+模型表单和标签页右键另使用 `pnpm test:chrome` 验证渠道和模型增删、未保存连接测试、默认模型、保存与重新加载、窄窗布局、批量关闭及保存失败保护、助手切换和历史恢复。使用本机 Google Chrome，找不到时可设置 `JOT_CHROME_EXE` 指向 `chrome.exe`，不会回退到 Edge。`tests/chrome/` 提供真实表单入口，后端使用隔离 Core 和本地原生协议假服务。
 
 ## 按改动选择测试
 
@@ -30,3 +32,5 @@ pnpm test:packed open-source-release.spec.ts
 目录中保留了一些历史阶段场景。它们不是当前全部功能均通过的证明；遇到过期目录或交互预期时先核对当前产品边界，不增加兼容逻辑来迎合旧断言。原型专项场景已删除，不作为发行测试入口。
 
 测试结果、截图和打包候选属于临时产物，不提交到公开源码。验证报告应写清实际执行的范围，不将定向测试称为全量验收。
+
+临时笔记库、Chrome 用户数据、截图和诊断输出必须放在工作区 tmp/ 下。Chrome 测试使用独立浏览器用户目录，关闭浏览器后清理；其余临时产物在任务结束时按实际创建清单清理。禁止将任务临时文件放到 C 盘或系统临时目录。

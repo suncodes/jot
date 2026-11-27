@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -43,7 +44,7 @@ test('U7发布包：完整能力资源、建库捕获、助手写入、四类后
     await expect(page.getByTestId('shell')).toBeVisible()
     expect(await callOnPage(page, 'settings:testModel', { baseUrl: fake.baseUrl, model: 'u7-release', apiKey: 'release-fake-secret', reasoningEffort: 'auto' })).toMatchObject({ ok: true })
     expect(fake.requests[0]).not.toHaveProperty('reasoning_effort')
-    await callOnPage(page, 'settings:set', { model: { baseUrl: fake.baseUrl, model: 'u7-release', apiKey: 'release-fake-secret', contextWindow: 65536, reasoningEffort: 'high' }, daily: { enabled: false }, classify: { enabled: true } })
+    await callOnPage(page, 'settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'u7-release', apiKey: 'release-fake-secret', contextWindow: 65536, reasoningEffort: 'high' }, await callOnPage(page, 'settings:get', undefined)), daily: { enabled: false }, classify: { enabled: true } })
     const catalog = await callOnPage(page, 'capabilities:catalog', undefined)
     expect(catalog.agents.map(agent => agent.id)).toEqual(['default'])
     expect(catalog.tools).toHaveLength(18); expect(catalog.skills).toHaveLength(9)

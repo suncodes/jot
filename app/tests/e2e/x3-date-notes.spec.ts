@@ -1,3 +1,4 @@
+import { defaultModel } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import { test, expect, callOnPage } from './file-fixture'
@@ -18,7 +19,7 @@ test('X3：两个候选包无模型生成普通日记，重复打开保留正在
         : { directory: 'content/工作/X3虚构日记/' + id + '/{{yyyy}}年-{{MM}}月', filename: '{{yyyy}}-{{MM}}-{{dd}}.md', template: { kind: 'package', path: 'templates/default.md' } } } })
     await call('extensions:setEnabled', { id, enabled: true })
   }
-  expect((await call('settings:get', undefined)).model.hasApiKey).toBe(false)
+  expect(defaultModel((await call('settings:get', undefined))).hasApiKey).toBe(false)
   expect((await call('app:status', undefined)).modelState).toBe('not-configured')
   const id = 'extension:work-diary:today:today'
   const created = await call('commands:execute', { id })

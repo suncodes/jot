@@ -6,7 +6,7 @@ import { t } from '@/strings'
 
 defineOptions({ inheritAttrs: false })
 const { options, label, searchable = false, disabled = false } = defineProps<{
-  options: readonly { value: T; label: string; disabled?: boolean }[]
+  options: readonly { value: T; label: string; disabled?: boolean; group?: string }[]
   label: string
   searchable?: boolean
   disabled?: boolean
@@ -72,9 +72,9 @@ watch(() => disabled, (v) => { if (v) close() })
         <div v-if="searchable" class="select-search"><Search :size="14" /><input ref="search" v-model="query" type="text" :aria-label="t.controls.searchOptions" :placeholder="t.controls.searchOptions" :aria-controls="id" :aria-activedescendant="activeId" /></div>
         <div :id="id" class="options" role="listbox" :aria-label="label" data-testid="select-options">
           <div v-if="!filtered.length" class="no-options muted">{{ t.controls.noOptions }}</div>
-          <div v-for="(option, i) in filtered" :id="id + '-option-' + i" :key="option.value" role="option" class="option" :class="{ active: i === active, disabled: option.disabled }" :aria-selected="option.value === value" :aria-disabled="option.disabled || undefined" :data-value="option.value" @pointermove="active = i" @mousedown.prevent @click="pick(i)">
+          <template v-for="(option, i) in filtered" :key="option.value"><div v-if="option.group && (i === 0 || filtered[i - 1]?.group !== option.group)" class="option-group" role="presentation">{{ option.group }}</div><div :id="id + '-option-' + i" role="option" class="option" :class="{ active: i === active, disabled: option.disabled }" :aria-selected="option.value === value" :aria-disabled="option.disabled || undefined" :data-value="option.value" :data-group="option.group" @pointermove="active = i" @mousedown.prevent @click="pick(i)">
             <span>{{ option.label }}</span><Check v-if="option.value === value" :size="14" aria-hidden="true" />
-          </div>
+          </div></template>
         </div>
       </div>
     </Teleport>
@@ -92,6 +92,7 @@ watch(() => disabled, (v) => { if (v) close() })
 .select-search input { width:100%; min-width:0; border:none; padding:0; border-radius:0; }
 .options { overflow:auto; min-height:0; padding:var(--space-1) 0; }
 .option { display:flex; align-items:center; justify-content:space-between; gap:var(--space-3); min-height:var(--control-height); padding:var(--space-2) var(--space-3); border-radius:var(--radius-s); cursor:pointer; overflow-wrap:anywhere; }
+.option-group { padding:var(--space-2) var(--space-3) var(--space-1); color:var(--text-faint); font-size:11px; }
 .option.active { background:var(--bg-hover); }
 .option[aria-selected='true'] { color:var(--accent); background:var(--accent-soft); }
 .option.disabled { color:var(--text-faint); cursor:default; }

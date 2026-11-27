@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Type } from 'typebox'
@@ -80,7 +81,7 @@ describe.each(protocols)('%s 实际协议链', protocol => {
   it('后台技能与压缩沿所选协议运行，重启后配置保持', async () => {
     const fake = await startProtocolLlm(protocol); cleanups.push(() => fake.close())
     const app = await testApp(); cleanups.push(() => app.close())
-    await app.call('settings:set', { model: { protocol, baseUrl: fake.baseUrl, model: 'fixture', apiKey: 'fake', contextWindow: 32768 } })
+    await app.call('settings:set', { ...modelSettings({ protocol, baseUrl: fake.baseUrl, model: 'fixture', apiKey: 'fake', contextWindow: 32768 }, app.core.settings.get()) })
     fake.setResponder(() => JSON.stringify({ value: '后台已完成' }))
     const task = await app.core.executor.prepare('daily')
     expect(await task.run('虚构材料', z.object({ value: z.string() }), '{"value":"结果"}')).toEqual({ value: '后台已完成' })
@@ -95,7 +96,7 @@ describe.each(protocols)('%s 实际协议链', protocol => {
     await expect.poll(() => app.core.state.raw.prepare('SELECT summary FROM conversation_summaries WHERE conversation_id=?').get(id), { timeout: 5000 }).toMatchObject({ summary })
     expect(fake.requests.some(isCompactionRequest)).toBe(true)
     await app.reopen()
-    expect(app.core.settings.get().model.protocol).toBe(protocol)
+    expect(app.core.settings.getModelConfig()!.protocol).toBe(protocol)
     expect(app.core.agent.get(id).messages).toHaveLength(12)
   })
 

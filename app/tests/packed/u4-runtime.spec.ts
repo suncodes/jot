@@ -1,3 +1,5 @@
+import { defaultModel } from '../helpers/models'
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -23,7 +25,7 @@ test('U4候选包：实际插件资源、推理请求、日总结保存和重启
     await page.getByTestId('vault-path').fill(vault); await page.getByTestId('vault-use').click()
     await page.getByTestId('model-skip').click(); await page.getByTestId('onboarding-start').click()
     await expect(page.getByTestId('shell')).toBeVisible()
-    await callOnPage(page, 'settings:set', { model: { baseUrl: fake.baseUrl, model: 'packed-u4', apiKey: 'fake', reasoningEffort: 'high' }, daily: { enabled: false }, classify: { enabled: false } })
+    await callOnPage(page, 'settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'packed-u4', apiKey: 'fake', reasoningEffort: 'high' }, await callOnPage(page, 'settings:get', undefined)), daily: { enabled: false }, classify: { enabled: false } })
     const catalog = await callOnPage(page, 'capabilities:catalog', undefined)
     expect(catalog.taskBindings.find(binding => binding.task === 'daily')).toMatchObject({ skillId: 'jot-core:daily-review', issues: [] })
     await callOnPage(page, 'capture:save', { text: '今天明确完成候选包验证', source: 'main-window' })
@@ -37,7 +39,7 @@ test('U4候选包：实际插件资源、推理请求、日总结保存和重启
     await app.evaluate(({ app }) => app.exit(0)); await app.close()
     app = await electron.launch({ executablePath: exe, env })
     page = await windowByUrl(app, 'index.html'); await expect(page.getByTestId('shell')).toBeVisible()
-    expect((await callOnPage(page, 'settings:get', undefined)).model.reasoningEffort).toBe('high')
+    expect(defaultModel((await callOnPage(page, 'settings:get', undefined))).reasoningEffort).toBe('high')
     expect((await callOnPage(page, 'jobs:list', { state: 'done' })).items.find(job => job.jobId === jobId)?.execution).toEqual(job.execution)
   } finally {
     await app.evaluate(({ app }) => app.exit(0)).catch(() => {}); await app.close().catch(() => {})

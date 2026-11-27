@@ -1,3 +1,5 @@
+import { defaultModel } from '../helpers/models'
+import { modelSettings } from '../helpers/models'
 import { test, expect, callOnPage } from './file-fixture'
 import { launch, selectOption, shot } from './helpers'
 import { agentScript, isAgentRequest, startFakeLlm } from '../helpers/fake-llm'
@@ -23,7 +25,7 @@ test('全局档位、连接测试和本对话覆盖实际发送；详情与深�
     expect(fake.requests.at(-1)?.reasoning_effort).toBe('high')
     expect(fake.requests.at(-1)?.max_tokens ?? fake.requests.at(-1)?.max_completion_tokens).toBeGreaterThan(4096)
     await page.getByTestId('model-save').click()
-    await expect.poll(async () => (await call('settings:get', undefined)).model.reasoningEffort).toBe('high')
+    await expect.poll(async () => defaultModel((await call('settings:get', undefined))).reasoningEffort).toBe('high')
     await shot(page, 'u4-model-reasoning-light')
     await page.getByTestId('ribbon-settings').click()
     await page.keyboard.press('Control+l')
@@ -70,14 +72,14 @@ test('全局档位、连接测试和本对话覆盖实际发送；详情与深�
     await expect(page.getByTestId('agent-answer')).toHaveCount(2)
     await expect(page.getByTestId('agent-stop')).toHaveCount(0)
     expect(fake.requests.filter(isAgentRequest).at(-1)?.reasoning_effort).toBe('high')
-    await call('settings:set', { model: { reasoningEffort: 'auto' } })
+    await call('settings:set', { ...modelSettings({ reasoningEffort: 'auto' }, await call('settings:get', undefined)) })
     await expect(selection).toHaveText('默认')
     await page.getByTestId('agent-input').fill('明确使用模型默认')
     await page.getByTestId('agent-send').click()
     await expect(page.getByTestId('agent-answer')).toHaveCount(3)
     await expect(page.getByTestId('agent-stop')).toHaveCount(0)
     expect(fake.requests.filter(isAgentRequest).at(-1)).not.toHaveProperty('reasoning_effort')
-    expect((await call('settings:get', undefined)).model.reasoningEffort).toBe('auto')
+    expect(defaultModel((await call('settings:get', undefined))).reasoningEffort).toBe('auto')
   } finally { await fake.close() }
 })
 
@@ -86,7 +88,7 @@ test('直接选择跨重启恢复，唯一默认继承全局；切模型清除�
   const fake = await startFakeLlm(agentScript([() => '本轮完成']))
   let resumed: Awaited<ReturnType<typeof launch>> | undefined
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'first', apiKey: 'fake', reasoningEffort: 'high' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'first', apiKey: 'fake', reasoningEffort: 'high' }, await call('settings:get', undefined)) })
     await page.keyboard.press('Control+l')
     await expect(page.getByTestId('agent-reasoning-effort')).toHaveText('默认')
     await selectOption(page, 'agent-reasoning-effort', 'low')
@@ -106,7 +108,7 @@ test('直接选择跨重启恢复，唯一默认继承全局；切模型清除�
     await expect(next.getByTestId('agent-reasoning-effort')).toHaveAttribute('data-value', 'low')
     await selectOption(next, 'agent-reasoning-effort', 'follow')
     await expect(next.getByTestId('agent-reasoning-effort')).toHaveText('默认')
-    await callOnPage(next, 'settings:set', { model: { reasoningEffort: 'low' } })
+    await callOnPage(next, 'settings:set', { ...modelSettings({ reasoningEffort: 'low' }, await callOnPage(next, 'settings:get', undefined)) })
     await expect(next.getByTestId('agent-reasoning-effort')).toHaveText('默认')
     const conversationId = (await callOnPage(next, 'agent:conversations', {})).items[0]!.conversationId
     await expect.poll(async () => (await callOnPage(next, 'agent:get', { conversationId })).context?.reasoningEffort).toBeUndefined()
@@ -117,11 +119,11 @@ test('直接选择跨重启恢复，唯一默认继承全局；切模型清除�
     expect(fake.requests.filter(isAgentRequest).at(-1)?.reasoning_effort).toBe('low')
     await selectOption(next, 'agent-reasoning-effort', 'medium')
     await expect(next.getByTestId('agent-reasoning-effort')).toHaveText('中')
-    await callOnPage(next, 'settings:set', { model: { model: 'second' } })
+    await callOnPage(next, 'settings:set', { ...modelSettings({ model: 'second' }, await callOnPage(next, 'settings:get', undefined)) })
     await expect(next.getByTestId('agent-reasoning-effort')).toHaveText('默认')
     await expect(next.getByTestId('agent-reasoning-effort')).toHaveAttribute('data-value', 'follow')
-    expect((await callOnPage(next, 'settings:get', undefined)).model.reasoningEffort).toBe('auto')
-    await callOnPage(next, 'settings:set', { model: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4' } })
+    expect(defaultModel((await callOnPage(next, 'settings:get', undefined))).reasoningEffort).toBe('auto')
+    await callOnPage(next, 'settings:set', { ...modelSettings({ baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4' }, await callOnPage(next, 'settings:get', undefined)) })
     await next.getByTestId('agent-reasoning-effort').click()
     await expect(next.getByTestId('select-options').getByRole('option', { name: '默认', exact: true })).toHaveCount(1)
     await expect(next.getByTestId('select-options').locator('[data-value="auto"]')).toHaveCount(0)
@@ -136,7 +138,7 @@ test('日总结复用现有生成入口，后台详情展示实际技能、模�
   const { page, call } = jot
   const fake = await startFakeLlm(() => JSON.stringify({ oneLine: '你完成了明确记录的测试', done: ['完成测试'], highlights: [], followUps: [] }))
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'daily-model', apiKey: 'fake', reasoningEffort: 'medium' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'daily-model', apiKey: 'fake', reasoningEffort: 'medium' }, await call('settings:get', undefined)) })
     const date = localDay(new Date())
     await call('capture:save', { text: '今天明确完成了功能测试', source: 'main-window' })
     const { jobId } = await call('timeline:generateDaily', { date })

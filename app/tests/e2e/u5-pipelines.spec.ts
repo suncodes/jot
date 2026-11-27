@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import { test, expect, callOnPage } from './file-fixture'
@@ -13,7 +14,7 @@ test('四类技能绑定可用，导入摘要和整理建议用全局档位，�
   let resumed: Awaited<ReturnType<typeof launch>> | undefined
   const fake = await startFakeLlm(req => JSON.stringify(kind(req).includes('jot-core:content-organize') ? classified : summary))
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'u5-model', apiKey: 'fake', reasoningEffort: 'high' }, classify: { enabled: true } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'u5-model', apiKey: 'fake', reasoningEffort: 'high' }, await call('settings:get', undefined)), classify: { enabled: true } })
     const external = path.join(launched.workDir, '接口资料.txt')
     fs.writeFileSync(external, '项目甲明确采用接口甲')
     const { imported } = await call('files:import', { paths: [external] })
@@ -64,7 +65,7 @@ test('同义分析使用技能并显示真实结果，用户确认后才合并�
   const { page, call, write } = jot
   const fake = await startFakeLlm(() => JSON.stringify({ groups: [{ names: ['Jot', 'Jot笔记'], suggested: 'Jot', reason: '同一软件的名称' }] }))
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'u5-model', apiKey: 'fake', reasoningEffort: 'medium' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'u5-model', apiKey: 'fake', reasoningEffort: 'medium' }, await call('settings:get', undefined)) })
     write('content/工作/记录.md', '---\ntags: [Jot, Jot笔记]\n---\n正文保留')
     await call('vault:refreshIndex', {})
     await page.getByTestId('ribbon-library').click(); await page.getByTestId('projects-manage').click()
@@ -95,7 +96,7 @@ test('切换任务绑定真实改变下一次摘要，模型默认不发送推�
   const { page, call, write, open } = jot
   const fake = await startFakeLlm(req => JSON.stringify({ ...summary, oneLine: kind(req).includes('custom-summary') ? '自定义技能已执行' : '基础技能已执行' }))
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'u5-model', apiKey: 'fake', reasoningEffort: 'auto' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'u5-model', apiKey: 'fake', reasoningEffort: 'auto' }, await call('settings:get', undefined)) })
     await call('capabilities:changeSkill', { action: 'save', enabled: true, content: { name: 'custom-summary', title: '自定义摘要', description: '仅处理提供资料', body: '从明确事实中整理摘要', requiredTools: [] } })
     await page.getByTestId('ribbon-capabilities').click(); await page.getByTestId('cap-tab-skills').click(); await page.getByTestId('cap-task-bindings').click()
     await selectOption(page, 'cap-task-summarize-file', 'custom-summary')

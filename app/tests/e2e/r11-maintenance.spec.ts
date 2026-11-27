@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -120,7 +121,7 @@ test('R11 存储入口复用历史对话删除确认，取消不删除，删除�
   const { page, call, write, vault } = jot
   const fake = await startFakeLlm(agentScript([() => '一段虚构回答']))
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' }, await call('settings:get', undefined)) })
     const { conversationId } = await call('agent:create', undefined)
     await call('agent:send', { conversationId, text: '核对实际会话删除入口' })
     await expect.poll(async () => (await call('agent:get', { conversationId })).messages.at(-1)?.text).toBe('一段虚构回答')

@@ -1,3 +1,4 @@
+import { modelCatalogInput, modelId } from '../settings/model-schema'
 import { REASONING_EFFORTS } from '@shared/reasoning'
 import { MODEL_PROTOCOLS } from '@shared/model-protocol'
 import { z, type ZodType } from 'zod'
@@ -47,7 +48,7 @@ const classificationPatch = z.object({
 }).strict()
 
 const material = z.object({ kind: z.enum(['file', 'folder']), value: z.string().min(1).max(1000), title: z.string().max(200) }).strict()
-const assistantContext = z.object({ agentId: z.string().min(1), references: z.array(material).max(30), strict: z.boolean(), skillIds: z.array(z.string()).max(100), reasoningEffort: reasoningEffort.optional(), reasoningModel: z.string().max(1500).optional() }).strict()
+const assistantContext = z.object({ agentId: z.string().min(1), modelId: modelId.optional(), references: z.array(material).max(30), strict: z.boolean(), skillIds: z.array(z.string()).max(100), reasoningEffort: reasoningEffort.optional(), reasoningModel: z.string().max(1500).optional() }).strict()
 /** 每个通道的参数校验。主进程入口统一校验，不通过返回 INVALID_INPUT。 */
 export const argSchemas: Record<Channel, ZodType> = {
   'commands:list': z.object({ query: z.string().max(200).optional(), availableOnly: z.boolean().default(true) }).strict(),
@@ -186,6 +187,7 @@ export const argSchemas: Record<Channel, ZodType> = {
   'agent:create': none,
   'agent:get': z.object({ conversationId: z.string().min(1) }),
   'agent:send': z.object({ conversationId: z.string().min(1), text: z.string().min(1).max(20_000), context: assistantContext.optional(), retryMessageId: z.string().optional() }).strict(),
+  'agent:setModel': z.object({ conversationId: z.string().min(1), modelId: modelId.nullable() }).strict(),
   'agent:setReasoning': z.object({ conversationId: z.string().min(1), effort: reasoningEffort.nullable() }).strict(),
   'agent:confirm': z.object({ runId: z.string().min(1), requestId: z.string().min(1), approved: z.boolean() }).strict(),
   'agent:abort': z.object({ runId: z.string().min(1) }),
@@ -204,11 +206,7 @@ export const argSchemas: Record<Channel, ZodType> = {
     compactionThreshold: compactionThreshold.optional(), reasoningEffort: reasoningEffort.optional(),
   }).strict(),
   'settings:set': z.object({
-    model: z.object({
-      baseUrl: z.string(), model: z.string(), apiKey: z.string(), protocol: z.enum(MODEL_PROTOCOLS),
-      contextWindow: z.number().int().min(MODEL_BUDGET_BOUNDS.contextWindow.min).max(MODEL_BUDGET_BOUNDS.contextWindow.max).nullable(),
-      compactionThreshold: compactionThreshold.nullable(), reasoningEffort,
-    }).partial().strict().optional(),
+    models: modelCatalogInput.optional(),
     classify: z.object({ enabled: z.boolean() }).partial().strict().optional(),
     maintenance: z.object({ trashRetentionDays: z.union([z.literal(0), z.literal(30)]) }).partial().strict().optional(),
     capture: z.object({ hotkey: z.string().min(1), launchAtLogin: z.boolean() }).partial().optional(),
@@ -225,6 +223,6 @@ export const argSchemas: Record<Channel, ZodType> = {
       .partial()
       .optional(),
   }).strict(),
-  'settings:testModel': z.object({ baseUrl: z.string(), apiKey: z.string(), model: z.string(), reasoningEffort, protocol: z.enum(MODEL_PROTOCOLS),
-    contextWindow: z.number().int().min(MODEL_BUDGET_BOUNDS.contextWindow.min).max(MODEL_BUDGET_BOUNDS.contextWindow.max), compactionThreshold }).partial().strict(),
+  'settings:testModel': z.object({ modelId: modelId, channelId: modelId, baseUrl: z.string(), apiKey: z.string(), model: z.string(), reasoningEffort, protocol: z.enum(MODEL_PROTOCOLS),
+    contextWindow: z.number().int().min(MODEL_BUDGET_BOUNDS.contextWindow.min).max(MODEL_BUDGET_BOUNDS.contextWindow.max).nullable(), compactionThreshold }).partial().strict(),
 }

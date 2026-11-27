@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -31,7 +32,7 @@ async function ask(id: string, text: string, context?: AssistantContext) {
 
 describe('U7 通用助手交付组合', () => {
   it('同一对话创建记录并安排四类后台，全局与对话档位分开，人工整理及改名后可从文件重建', async () => {
-    await app.call('settings:set', { model: { reasoningEffort: 'high', contextWindow: 65536 }, classify: { enabled: true } })
+    await app.call('settings:set', { ...modelSettings({ reasoningEffort: 'high', contextWindow: 65536 }, app.core.settings.get()), classify: { enabled: true } })
     const external = path.join(app.tmp.dir, '评审.txt'), raw = '采用方案甲，预算0.3万元。\r\n'
     fs.writeFileSync(external, raw)
     app.core.operations.setPlatform({ trashItem: async () => { throw new Error('未配置系统回收站测试') }, pickFiles: async () => [external], saveFile: async () => null })
@@ -89,7 +90,7 @@ describe('U7 通用助手交付组合', () => {
   })
 
   it.each(['daily', 'summarize-file', 'classify', 'find-synonyms'] as const)('%s明确拒绝高档后保持失败，主动改模型默认重试只发默认参数并保存实际记录', async (task: AiTaskKind) => {
-    await app.call('settings:set', { model: { reasoningEffort: 'high' } })
+    await app.call('settings:set', { ...modelSettings({ reasoningEffort: 'high' }, app.core.settings.get()) })
     await app.call('vault:createFolder', { parent: 'content/工作', name: '组合验收' })
     app.write('inbox/2026/11/资料.txt', '资料正文'); await app.core.syncIndex()
     await app.call('capture:save', { text: '明确完成接口评审', source: 'main-window' })
@@ -101,7 +102,7 @@ describe('U7 通用助手交付组合', () => {
     await app.core.jobs.drain()
     expect(app.core.jobs.info(jobId)).toMatchObject({ state: 'failed', error: expect.stringContaining('未自动降档'), execution: { reasoning: { requested: 'high' } } })
     expect(app.fake.requests).toHaveLength(1)
-    await app.call('settings:set', { model: { reasoningEffort: 'auto' } })
+    await app.call('settings:set', { ...modelSettings({ reasoningEffort: 'auto' }, app.core.settings.get()) })
     app.fake.setResponder(taskReply)
     app.core.jobs.retry(jobId); await app.core.jobs.drain()
     expect(app.core.jobs.info(jobId)).toMatchObject({ state: 'done', execution: { reasoning: { requested: 'auto', source: 'model-default' } } })
@@ -111,7 +112,7 @@ describe('U7 通用助手交付组合', () => {
   })
 
   it('同一长对话的默认覆盖、独立压缩、后台全局高档和导出跨索引重建保持', async () => {
-    await app.call('settings:set', { model: { contextWindow: 26624, reasoningEffort: 'high' } })
+    await app.call('settings:set', { ...modelSettings({ contextWindow: 26624, reasoningEffort: 'high' }, app.core.settings.get()) })
     const compressed = '用户在核对组合验收，后续按当前文件回答，保留原始记录和实际出处。'
     app.fake.setResponder(agentScript([
       () => ({ toolCall: { name: 'calculator', arguments: { expression: '0.1+0.2' } } }),

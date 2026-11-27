@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { ChatMessage } from '../../shared/types'
@@ -30,7 +31,7 @@ test('历史菜单导出 Markdown／JSONL，取消不写，失败可重试；来
     results => '项目甲完成接口联调[^' + chunkIds(results[0]!)[0] + ']。',
   ]))
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' }, await call('settings:get', undefined)) })
     await page.keyboard.press('Control+l')
     await page.getByTestId('agent-input').fill('核对项目甲的进展')
     await page.getByTestId('agent-send').click()
@@ -87,7 +88,7 @@ test('插件技能、多轮后台摘要、重启恢复和完整会话导出组�
   ], req => isCompactionRequest(req) ? summary : '好'))
   let resumed: Awaited<ReturnType<typeof launch>> | undefined
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake', contextWindow: 32768 } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake', contextWindow: 32768 }, await call('settings:get', undefined)) })
     await page.keyboard.press('Control+l')
     await expect(page.getByTestId('agent-select')).toHaveText('通用助手')
     for (let i = 0; i < 7; i++) {
@@ -139,7 +140,7 @@ test('正在回答的会话不能导出，停止后可导出未完成状态及�
   const fake = await startFakeLlm(agentScript([async () => { await waiting; return '迟到结果' }]))
   const target = path.join(launched.workDir, '停止的会话.jsonl')
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' }, await call('settings:get', undefined)) })
     await page.keyboard.press('Control+l')
     await page.getByTestId('agent-input').fill('保留未结束的这个问题')
     await page.getByTestId('agent-send').click()

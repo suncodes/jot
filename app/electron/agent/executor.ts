@@ -142,7 +142,7 @@ export class AiExecutor {
       return { skill, resources, instructions: catalog.agents[0]!.instructions, cwd: this.vault.path }
     })
     if (signal?.aborted) throw new JotError('CANCELLED', '任务已取消')
-    const execution: AiExecution = { model: modelConfig.model, skillId: prepared.skill.id }
+    const execution: AiExecution = { model: modelConfig.model, modelUse: { id: modelConfig.id, name: modelConfig.name, channelId: modelConfig.channelId, channelName: modelConfig.channelName, protocol: modelConfig.protocol, model: modelConfig.model }, skillId: prepared.skill.id }
     onExecution?.(structuredClone(execution))
     const pi = await loadPi()
     const tools = [pi.defineTool({

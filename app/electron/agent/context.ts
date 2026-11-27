@@ -43,7 +43,7 @@ export async function prepareTurn(vault: VaultService, index: IndexService, cont
   return {
     resources,
     context: {
-      agentId: agent.id, agent, skillIds: request.skillIds, strict: request.strict, references, reasoningEffort: request.reasoningEffort, reasoningModel: request.reasoningModel,
+      agentId: agent.id, modelId: request.modelId, agent, skillIds: request.skillIds, strict: request.strict, references, reasoningEffort: request.reasoningEffort, reasoningModel: request.reasoningModel,
       skills: activeSkills.map(({ id, name, title }) => ({ id, name, title })),
     },
     skills: activeSkills,

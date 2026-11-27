@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { AgentEvent, ChatMessage } from '../../shared/types'
@@ -18,7 +19,7 @@ async function fillConversation(id: string) {
 beforeEach(async () => {
   events = []
   app = await testApp((name, value) => { if (name === 'agent:event') events.push(structuredClone(value as AgentEvent)) })
-  await app.call('settings:set', { model: { baseUrl: app.fake.baseUrl, apiKey: 'fake', model: 'fake', contextWindow: 16384 } })
+  await app.call('settings:set', { ...modelSettings({ baseUrl: app.fake.baseUrl, apiKey: 'fake', model: 'fake', contextWindow: 16384 }, app.core.settings.get()) })
 })
 afterEach(async () => { await app.close() })
 
@@ -49,7 +50,7 @@ describe('正式助手压缩生命周期', () => {
   })
 
   it('后台未完仍能继续提问，预算不足才推送等待；用户停止后问题与既有步骤仍保留', async () => {
-    await app.call('settings:set', { model: { contextWindow: 26624 } })
+    await app.call('settings:set', { ...modelSettings({ contextWindow: 26624 }, app.core.settings.get()) })
     const arrived = deferred(), release = deferred()
     app.fake.setResponder(agentScript([() => '短回答'], async req => {
       if (isCompactionRequest(req)) { arrived.release(); await release.promise; return summary }
@@ -88,7 +89,7 @@ describe('正式助手压缩生命周期', () => {
       await fillConversation(id)
       await arrived.promise
       if (action === 'delete') await app.call('agent:delete', { conversationId: id })
-      else if (action === 'model') await app.call('settings:set', { model: { model: 'another' } })
+      else if (action === 'model') await app.call('settings:set', { ...modelSettings({ model: 'another' }, app.core.settings.get()) })
       else await app.core.openVault(path.join(app.tmp.dir, 'second-vault'), true)
       await expect.poll(() => app.core.agent.isRunning).toBe(false)
       release.release()

@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import { absoluteFileHref } from '../../shared/file-links'
 import { answerNoteBody } from '../../shared/answer-note'
 import { renderConversation } from '../../electron/agent/export'
@@ -156,7 +157,7 @@ describe('当前文件与路径引用', () => {
     const question = app.core.agent.get(id).messages[0]!
     app.write(file, '已更新：新预算')
     await app.call('capabilities:changeAgent', { action: 'save', agent: { ...agent, instructions: '第二版说明' } })
-    await app.call('settings:set', { model: { model: 'next-model', baseUrl: app.fake.baseUrl, apiKey: 'fake' } })
+    await app.call('settings:set', { ...modelSettings({ model: 'next-model', baseUrl: app.fake.baseUrl, apiKey: 'fake' }, app.core.settings.get()) })
     const retried = await ask(id, '忽略这个参数', undefined, question.messageId)
     expect(retried.toolCalls![0]!.output).toContain('新预算')
     expect(retried.context!.agent.instructions).toBe('第二版说明')
@@ -443,7 +444,7 @@ describe('历史、失败与恢复', () => {
     expect(app.core.agent.conversations({}).total).toBe(0)
   })
 
-  it('真实模型配置变化停止在途回答，普通布局和主题变化继续', async () => {
+  it('配置、布局和主题变更不打断在途回答，下一轮采用新模型', async () => {
     const waiting = deferred(), arrived = deferred()
     app.fake.setResponder(agentScript([async () => { arrived.release(); await waiting.promise; return '迟到回答' }]))
     const id = app.core.agent.create().conversationId
@@ -453,9 +454,12 @@ describe('历史、失败与恢复', () => {
       await app.call('settings:set', { appearance: { theme: 'dark' }, layout: { agentCollapsed: true } })
       expect(app.core.agent.get(id).running).toBe(runId)
       await expect(app.call('agent:send', { conversationId: id, text: '插队' })).rejects.toThrow('先停止')
-      await app.call('settings:set', { model: { model: 'another', baseUrl: app.fake.baseUrl, apiKey: 'fake' } })
+      await app.call('settings:set', { ...modelSettings({ model: 'another', baseUrl: app.fake.baseUrl, apiKey: 'fake' }, app.core.settings.get()) })
+      expect(app.core.agent.get(id).running).toBe(runId)
+      waiting.release()
       await app.core.agent.wait(runId)
-      expect(app.core.agent.get(id).messages.at(-1)!.error).toBe('已停止')
+      expect(app.core.agent.get(id).messages.at(-1)!.error).toBeUndefined()
+      expect(app.core.agent.get(id).messages.at(-1)!.context?.model).toBe('fake')
     } finally { waiting.release() }
   })
 

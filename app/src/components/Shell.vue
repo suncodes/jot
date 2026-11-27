@@ -37,6 +37,7 @@ import { useLibraryPinsStore } from '@/stores/pins'
 import { ARCHIVE_TAB, CAPABILITIES_TAB, LIBRARY_TAB, REVIEW_TAB, TAXONOMY_TAB, TODAY_TAB, TRASH_TAB, useTabsStore } from '@/stores/tabs'
 import { useToastsStore } from '@/stores/toasts'
 import { selectedText } from '@/utils/textActions'
+import TabStrip from '@/components/TabStrip.vue'
 import { t } from '@/strings'
 
 const app = useAppStore()
@@ -68,7 +69,6 @@ const importOpen = ref(false)
 const importTarget = ref('pending')
 const importPending = ref<File[] | null>(null)
 const picker = ref<HTMLInputElement | null>(null)
-const dragFrom = ref<number | null>(null)
 const dropping = ref(false)
 const offs: (() => void)[] = []
 let dragDepth = 0
@@ -295,9 +295,7 @@ onUnmounted(() => { window.removeEventListener('keydown', onKey); window.removeE
       <main class="content surface" data-testid="content">
         <div v-if="!app.showSettings" class="tabbar" data-testid="tabbar">
           <button class="ghost icon-button side-toggle" data-testid="side-toggle" :title="t.library.toggleSide" @click="app.updateSettings({ layout: { sideCollapsed: !layout.sideCollapsed } })"><PanelLeft :size="15" /></button>
-          <div v-for="(tab, i) in tabs.tabs" :key="tab.key" class="tab" :class="{ active: tab.path === tabs.activePath }" data-testid="tab" :data-path="tab.path" draggable="true" @click="tabs.activePath = tab.path" @auxclick.middle="tabs.close(tab.path)" @dragstart="dragFrom = i" @dragover.prevent @drop="dragFrom !== null && tabs.move(dragFrom, i)">
-            <button class="ghost tab-title" @click="tabs.activePath = tab.path">{{ tab.title }}</button><button class="ghost tab-close" :title="t.common.close" data-testid="tab-close" @click.stop="tabs.close(tab.path)"><X :size="12" /></button>
-          </div>
+          <TabStrip />
         </div>
         <div class="stage">
           <SettingsView v-if="settingsWasOpened" v-show="app.showSettings" :key="app.vault.path" @history="openAssistantHistory" />
@@ -356,10 +354,6 @@ onUnmounted(() => { window.removeEventListener('keydown', onKey); window.removeE
 .resizer { position:absolute; top:0; bottom:0; width:5px; cursor:col-resize; z-index:5; }
 .resizer.right { right:-3px; }.resizer.left { left:0; }.resizer:hover { background:var(--accent-soft); }
 .tabbar { flex:none; height:var(--tabbar-height); display:flex; align-items:center; padding:0 var(--space-3); gap:var(--space-1); border-bottom:1px solid var(--border); overflow-x:auto; }
-.tab { display:flex; align-items:center; height:30px; max-width:190px; padding:0 var(--space-1); border-radius:var(--radius-s); color:var(--text-muted); }
-.tab.active { color:var(--accent); background:var(--accent-soft); }
-.tab-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 var(--space-2); font-size:var(--font-size-small); color:inherit; }
-.tab-close { display:grid; place-items:center; padding:2px; min-height:0; color:var(--text-faint); }
 .side-toggle { color:var(--text-muted); flex:none; }
 .stage { flex:1; min-height:0; position:relative; overflow:auto; }
 .content-empty { height:100%; display:grid; place-items:center; }

@@ -85,6 +85,26 @@ export const useTabsStore = defineStore('tabs', () => {
     finally { closing.delete(path) }
   }
 
+  const batchClosing = ref(false)
+  async function closeRelative(path: string, side: 'others' | 'left' | 'right'): Promise<void> {
+    if (batchClosing.value) return
+    const index = tabs.value.findIndex(tab => tab.path === path), anchor = tabs.value[index]
+    if (!anchor) return
+    const targets = tabs.value.filter((_tab, position) => side === 'others' ? position !== index : side === 'left' ? position < index : position > index)
+      .map(tab => ({ key: tab.key, path: tab.path }))
+    if (!targets.length) return
+    batchClosing.value = true
+    try {
+      // 全部保存成功后才移除标签；任何冲突保留原标签，避免部分关闭。
+      for (const tab of targets) await prepareContentAction(tab.path)
+      if (!tabs.value.some(tab => tab.key === anchor.key) || targets.some(target => tabs.value.find(tab => tab.key === target.key)?.path !== target.path)) return
+      const keys = new Set(targets.map(tab => tab.key))
+      const activeClosed = tabs.value.some(tab => tab.path === activePath.value && keys.has(tab.key))
+      tabs.value = tabs.value.filter(tab => !keys.has(tab.key))
+      if (activeClosed) activePath.value = anchor.path
+    } catch (error) { useToastsStore().error((error as Error).message) }
+    finally { batchClosing.value = false }
+  }
   function cycle(step: 1 | -1): void {
     if (tabs.value.length < 2) return
     const i = tabs.value.findIndex((t) => t.path === activePath.value)
@@ -110,5 +130,5 @@ export const useTabsStore = defineStore('tabs', () => {
     if (tab && title) tab.title = title
   }
 
-  return { tabs, activePath, active, editProps, open, close, cycle, move, retarget, setTitle }
+  return { tabs, activePath, active, editProps, open, close, closeRelative, batchClosing, cycle, move, retarget, setTitle }
 })

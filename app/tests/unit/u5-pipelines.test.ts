@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import { JotError } from '@shared/result'
@@ -15,7 +16,7 @@ const summaryReply = { oneLine: '按原文归纳', points: ['正文明确事实'
 const classifyReply = { directoryPath: 'content/工作', tags: ['模型建议'], people: ['小周'], place: null, confidence: 0.8, reason: '业务材料' }
 const taskKind = (req: FakeChatRequest) => String(req.messages[0]?.content).match(/任务技能：[^\n]+/)?.[0] ?? ''
 const requestText = (req: FakeChatRequest) => JSON.stringify(req.messages)
-const model = (effort: 'auto' | 'low' | 'high' = 'high', contextWindow = 32768) => app.call('settings:set', { model: { baseUrl: app.fake.baseUrl, model: 'fake', apiKey: 'fake', reasoningEffort: effort, contextWindow } })
+const model = (effort: 'auto' | 'low' | 'high' = 'high', contextWindow = 32768) => app.call('settings:set', { ...modelSettings({ baseUrl: app.fake.baseUrl, model: 'fake', apiKey: 'fake', reasoningEffort: effort, contextWindow }, app.core.settings.get()) })
 
 describe('U5 四类业务AI统一执行', () => {
   it('新库四个任务绑定可用，实际任务记录模型/技能/全局强度，聊天覆盖不泄漏', async () => {

@@ -32,9 +32,9 @@ export interface PiSessionOptions {
   prepareRequest?: (payload: ModelPayload, limits: ModelLimits, model: string) => Promise<BudgetedRequest>
 }
 export class PiHost {
-  constructor(private readonly agentDir: string, private readonly getModelConfig: () => ModelConfig | null, private readonly report?: (config: ModelConfig, state: ModelState, message?: string) => void) {}
-  configuration(): ModelConfig {
-    const config = this.getModelConfig()
+  constructor(private readonly agentDir: string, private readonly getModelConfig: (modelId?: string) => ModelConfig | null, private readonly report?: (config: ModelConfig, state: ModelState, message?: string) => void) {}
+  configuration(modelId?: string): ModelConfig {
+    const config = this.getModelConfig(modelId)
     if (!config) throw new JotError('LLM_NOT_CONFIGURED', '还没有配置模型')
     return { ...config }
   }

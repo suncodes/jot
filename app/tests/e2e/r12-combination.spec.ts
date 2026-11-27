@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -62,7 +63,7 @@ test('R12 随手记与外部纯 Markdown 跨列表、时间线、搜索、严格
     await page.getByTestId('search-hit').click()
     await expect(doc(page)).toHaveAttribute('data-path', recorded)
 
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' }, await call('settings:get', undefined)) })
     const responder = agentScript([
       () => ({ toolCall: { name: 'read', arguments: { path: recorded } } }),
       () => ({ toolCall: { name: 'read', arguments: { path: outside } } }),
@@ -129,7 +130,7 @@ test('R12 附件导入、独立归档与属性、链接和摘要跟随，回收�
       : JSON.stringify({ oneLine: '会议确认灰度方案', points: ['会议决定采用灰度方案'], entities: null })
   })
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' }, await call('settings:get', undefined)) })
     await call('vault:createFolder', { parent: 'content/工作', name: '评审归档' })
     fs.writeFileSync(outside, raw)
     await openLibrary(page, 'all')

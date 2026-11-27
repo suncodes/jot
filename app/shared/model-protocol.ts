@@ -3,6 +3,7 @@ export type ModelProtocol = typeof MODEL_PROTOCOLS[number]
 export const DEFAULT_MODEL_PROTOCOL: ModelProtocol = 'openai-completions'
 
 export interface ModelEndpoint {
+  id?: string
   baseUrl: string
   model: string
   protocol?: ModelProtocol

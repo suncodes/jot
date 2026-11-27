@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import { describe, expect, it } from 'vitest'
 import { CHANNELS } from '@shared/ipc'
 import { JotError } from '@shared/result'
@@ -16,19 +17,20 @@ function makeHandlers(over: Partial<Handlers>): Handlers {
 describe('IPC 分发', () => {
   it('推理设置和对话覆盖使用有界档位，预览不接受密钥或任意参数', () => {
     for (const reasoningEffort of ['auto', 'low', 'medium', 'high', 'off', 'minimal', 'xhigh', 'max']) {
-      expect(argSchemas['settings:set'].safeParse({ model: { reasoningEffort } }).success).toBe(true)
+      expect(argSchemas['settings:set'].safeParse(modelSettings({ reasoningEffort: reasoningEffort as never })).success).toBe(true)
       expect(argSchemas['agent:setReasoning'].safeParse({ conversationId: 'test', effort: reasoningEffort }).success).toBe(true)
     }
     expect(argSchemas['agent:setReasoning'].safeParse({ conversationId: 'test', effort: null }).success).toBe(true)
-    expect(argSchemas['settings:set'].safeParse({ model: { reasoningEffort: 'arbitrary' } }).success).toBe(false)
+    expect(argSchemas['settings:set'].safeParse(modelSettings({ reasoningEffort: 'arbitrary' as never })).success).toBe(false)
     expect(argSchemas['settings:reasoning'].safeParse({ baseUrl: '', model: '', apiKey: 'secret' }).success).toBe(false)
   })
   it('模型窗口／比例严格校验，输出配置已移除，预算预览不接受密钥', () => {
-    for (const model of [{ contextWindow: 4096, compactionThreshold: 0.6 }, { contextWindow: null, compactionThreshold: null }, { compactionThreshold: 0.7 }, { compactionThreshold: 0.8 }]) {
-      expect(argSchemas['settings:set'].safeParse({ model }).success).toBe(true)
+    for (const model of [{ contextWindow: 4096, compactionThreshold: 0.6 }, {}, { compactionThreshold: 0.7 }, { compactionThreshold: 0.8 }]) {
+      expect(argSchemas['settings:set'].safeParse(modelSettings(model as never)).success).toBe(true)
     }
     for (const model of [{ contextWindow: 100 }, { contextWindow: 3_000_000 }, { compactionThreshold: 0.75 }, { compactionThreshold: '70%' }, { maxOutputTokens: 512 }, { context: 8192 }]) {
-      expect(argSchemas['settings:set'].safeParse({ model }).success).toBe(false)
+      const input = modelSettings({}); Object.assign(input.models.channels[0]!.models[0]!, model)
+      expect(argSchemas['settings:set'].safeParse(input).success).toBe(false)
     }
     expect(argSchemas['settings:modelBudget'].safeParse({ baseUrl: '', model: '', compactionThreshold: 0.7 }).success).toBe(true)
     for (const extra of [{ apiKey: '不得传入' }, { contextWindow: 3 }, { compactionThreshold: 0.9 }, { maxOutputTokens: 512 }]) {

@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import yaml from 'js-yaml'
@@ -340,7 +341,7 @@ describe('R1 导入任务联动', () => {
   it('明确导入调用本地假模型，摘要用普通 source 配对；后续资料修改不覆盖旧摘要', async () => {
     const fake = await startFakeLlm(() => JSON.stringify({ oneLine: '一份接口说明', points: ['约定接口字段'], entities: {} }))
     try {
-      await core.settings.set({ model: { baseUrl: fake.baseUrl, apiKey: 'fake', model: 'fake-model' } })
+      await core.settings.set({ ...modelSettings({ baseUrl: fake.baseUrl, apiKey: 'fake', model: 'fake-model' }, core.settings.get()) })
       const outside = path.join(tmp.dir, '接口.txt')
       fs.writeFileSync(outside, '第一版接口')
       const imported = await call('files:import', { paths: [outside], toDir: 'content/工作' })
@@ -366,7 +367,7 @@ describe('R1 导入任务联动', () => {
     const fake = await startFakeLlm(() => JSON.stringify({ directoryPath: 'content/工作', tags: ['工作想法'],
       place: null, people: [], confidence: 0.95, reason: '内容属于工作' }))
     try {
-      await core.settings.set({ classify: { enabled: true }, model: { baseUrl: fake.baseUrl, apiKey: 'fake', model: 'fake-model' } })
+      await core.settings.set({ classify: { enabled: true }, ...modelSettings({ baseUrl: fake.baseUrl, apiKey: 'fake', model: 'fake-model' }, core.settings.get()) })
       const record = await call('capture:save', { text: '整理接口字段', source: 'main-window' })
       await core.quiesce()
       expect(parseDoc(raw(record.path)).data).not.toHaveProperty('tags')

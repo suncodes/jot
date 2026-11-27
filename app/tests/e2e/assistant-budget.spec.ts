@@ -1,3 +1,5 @@
+import { defaultModel } from '../helpers/models'
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import { test, expect, callOnPage } from './file-fixture'
@@ -30,7 +32,7 @@ test('窗口档位与压缩比例配置、精确输入校验、跨重启与恢�
     await page.getByTestId('model-context-custom').fill('100')
     await page.getByTestId('model-save').click()
     await expect(page.getByTestId('model-save-error')).toContainText('4,096')
-    expect((await call('settings:get', undefined)).model).not.toHaveProperty('contextWindow')
+    expect(defaultModel((await call('settings:get', undefined)))).not.toHaveProperty('contextWindow')
     await page.getByTestId('model-context-custom').fill('128000')
     await expect(page.getByTestId('model-budget-preview')).toContainText('128,000 Token · 手动设置')
     await selectOption(page, 'model-context-window', '16384')
@@ -38,8 +40,8 @@ test('窗口档位与压缩比例配置、精确输入校验、跨重启与恢�
     await selectOption(page, 'model-compaction-threshold', '0.8')
     await page.getByTestId('model-save').click()
     await expect(page.getByTestId('model-save-error')).toHaveCount(0)
-    expect((await call('settings:get', undefined)).model).toMatchObject({ contextWindow: 16384, compactionThreshold: 0.8 })
-    expect((await call('settings:get', undefined)).model).not.toHaveProperty('maxOutputTokens')
+    expect(defaultModel((await call('settings:get', undefined)))).toMatchObject({ contextWindow: 16384, compactionThreshold: 0.8 })
+    expect(defaultModel((await call('settings:get', undefined)))).not.toHaveProperty('maxOutputTokens')
     await expect(page.getByTestId('model-budget-preview')).toContainText('16,384 Token · 手动设置')
     expect(fake.requests).toHaveLength(0)
     await shot(page, 'model-window-config-light')
@@ -75,10 +77,10 @@ test('窗口档位与压缩比例配置、精确输入校验、跨重启与恢�
     await selectOption(next, 'model-context-window', 'other')
     await next.getByTestId('model-context-custom').fill('128000')
     await next.getByTestId('model-save').click()
-    expect((await callOnPage(next, 'settings:get', undefined)).model.contextWindow).toBe(128000)
+    expect(defaultModel((await callOnPage(next, 'settings:get', undefined))).contextWindow).toBe(128000)
     await selectOption(next, 'model-context-window', 'auto')
     await next.getByTestId('model-save').click()
-    await expect.poll(async () => (await callOnPage(next, 'settings:get', undefined)).model.contextWindow).toBeUndefined()
+    await expect.poll(async () => defaultModel((await callOnPage(next, 'settings:get', undefined))).contextWindow).toBeUndefined()
     await expect(next.getByTestId('model-budget-preview')).toContainText('32,768 Token · 保守默认')
     await selectOption(next, 'model-compaction-threshold', '0.6')
     await next.getByTestId('model-save').click()
@@ -99,8 +101,8 @@ test('窗口档位与压缩比例配置、精确输入校验、跨重启与恢�
     await expect(next.getByTestId('model-context-window')).toHaveAttribute('data-value', 'auto')
     await expect(next.getByTestId('model-compaction-threshold')).toHaveAttribute('data-value', '0.6')
     await next.getByTestId('model-save').click()
-    expect((await callOnPage(next, 'settings:get', undefined)).model).toMatchObject({ model: 'another-model', compactionThreshold: 0.6 })
-    expect((await callOnPage(next, 'settings:get', undefined)).model).not.toHaveProperty('contextWindow')
+    expect(defaultModel((await callOnPage(next, 'settings:get', undefined)))).toMatchObject({ model: 'another-model', compactionThreshold: 0.6 })
+    expect(defaultModel((await callOnPage(next, 'settings:get', undefined)))).not.toHaveProperty('contextWindow')
   } finally { await resumed?.close(); await fake.close() }
 })
 
@@ -116,7 +118,7 @@ test('大工具累计材料超限显示可行动原因和占比，过程仍可�
     () => '不应该发送的第三次请求',
   ]))
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'small', apiKey: 'fake', contextWindow: 28672 } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'small', apiKey: 'fake', contextWindow: 28672 }, await call('settings:get', undefined)) })
     await page.keyboard.press('Control+l')
     await page.getByTestId('agent-input').fill('读取大材料')
     await page.getByTestId('agent-send').click()

@@ -65,7 +65,11 @@ export function createHandlers(core: Core, platform: Platform): Handlers {
     'shortcuts:set': input => core.commands.saveShortcuts(input),
     'settings:modelBudget': input => core.pi.resolveLimits(input),
     'settings:reasoning': input => core.pi.reasoningOptions(input),
-    'settings:testModel': override => model.test(core.pi, core.vault.isOpen ? core.vault.path : '.', override),
+    'settings:testModel': ({ modelId, channelId, contextWindow, ...override }) => {
+      const saved = modelId ? core.settings.getModelConfig(modelId) : null
+      const apiKey = channelId ? core.settings.channelKey(channelId) : saved?.apiKey
+      return model.test(core.pi, core.vault.isOpen ? core.vault.path : '.', { ...override, ...(contextWindow !== undefined ? { contextWindow: contextWindow ?? undefined } : {}), apiKey: override.apiKey ?? apiKey }, saved)
+    },
     'doc:properties': ({ path }) => vault.getProperties(path),
     'links:list': ({ path, direction }) => core.links.list(path, direction),
 
@@ -247,6 +251,7 @@ export function createHandlers(core: Core, platform: Platform): Handlers {
       if (openingVault) throw new JotError('CONFLICT', '正在打开库，请稍后重试')
       return agent.send(conversationId, text, context, retryMessageId)
     },
+    'agent:setModel': ({ conversationId, modelId }) => inCurrentVault(async () => agent.setModel(conversationId, modelId)),
     'agent:setReasoning': ({ conversationId, effort }) => inCurrentVault(async () => agent.setReasoning(conversationId, effort)),
     'agent:confirm': ({ runId, requestId, approved }) => agent.confirm(runId, requestId, approved),
     'agent:abort': ({ runId }) => agent.abort(runId),

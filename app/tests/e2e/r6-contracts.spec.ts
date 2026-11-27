@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import { test, expect } from './file-fixture'
@@ -34,7 +35,7 @@ test('R6 真实待处理操作：属性确认不归档，目录确认移动实�
   const fake = await startFakeLlm(() => JSON.stringify({ directoryPath: 'content/工作', tags: ['需求'], people: [], confidence: 0.9, reason: '虚构资料整理建议' }))
   const { page, call, write, vault } = jot
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, apiKey: 'fake', model: 'fake' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, apiKey: 'fake', model: 'fake' }, await call('settings:get', undefined)) })
     write('inbox/2026/11/整理资料.md', '虚构资料正文')
     await call('vault:refreshIndex', {})
     await page.getByTestId('ribbon-library').click()

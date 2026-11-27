@@ -9,6 +9,8 @@ export interface MaterialReference {
   /** 目录默认只含物理子树，显式开启才增加一跳相关记录。 */
 }
 export interface AssistantContext {
+  /** 省略表示跟随全局默认；显式选择按配置 ID 保存。 */
+  modelId?: string
   agentId: string
   references: MaterialReference[]
   strict: boolean
@@ -21,6 +23,7 @@ export interface AssistantContext {
 export interface TurnContext extends AssistantContext {
   agent: ManagedAgent
   model?: string
+  modelUse?: import('./models').ModelUse
   reasoning?: ResolvedReasoning
   skills: Pick<ManagedSkill, 'id' | 'name' | 'title'>[]
 }

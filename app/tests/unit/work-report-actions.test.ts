@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -206,7 +207,7 @@ describe('W4 通用助手实际工具流程', () => {
   it.each(['daily', 'weekly', 'monthly', 'okr'] as const)('%s加载规则、读取当前材料并直接保存，严格范围不阻止明确报告输出', async kind => {
     await install(true); await configure()
     usesModel = true
-    await app.core.settings.set({ model: { contextWindow: 65536 } })
+    await app.core.settings.set({ ...modelSettings({ contextWindow: 65536 }, app.core.settings.get()) })
     const plan = planWorkReport(paths(), { kind }, app.core.now())
     const material = kind === 'daily' ? plan.days.at(-1)!.draftPath : plan.days[0]!.reportPath
     app.write(material, '---\ntags: [工作]\n---\n已完成接口静态检查，尚未联调。\n' + '过程事实。'.repeat(1300) + '\n最后事实：等待真实联调。')

@@ -147,6 +147,7 @@ export interface IpcContract {
   'agent:create': { args: void; result: ConversationInfo }
   'agent:get': { args: { conversationId: string }; result: { info: ConversationInfo; messages: ChatMessage[]; context?: AssistantContext; running?: string; live?: ChatMessage } }
   'agent:send': { args: { conversationId: string; text: string; context?: AssistantContext; retryMessageId?: string }; result: { runId: string } }
+  'agent:setModel': { args: { conversationId: string; modelId: string | null }; result: AssistantContext }
   'agent:setReasoning': { args: { conversationId: string; effort: ReasoningEffort | null }; result: AssistantContext }
   'agent:confirm': { args: { runId: string; requestId: string; approved: boolean }; result: void }
   'agent:abort': { args: { runId: string }; result: void }
@@ -162,7 +163,7 @@ export interface IpcContract {
   'settings:reasoning': { args: import('./model-protocol').ModelEndpoint; result: ResolvedReasoning }
   'settings:modelBudget': { args: import('./model-protocol').ModelEndpoint & { contextWindow?: number; compactionThreshold?: CompactionThreshold; reasoningEffort?: ReasoningEffort }; result: ResolvedModelBudget }
   'settings:set': { args: SettingsInput; result: Settings }
-  'settings:testModel': { args: { protocol?: import('./model-protocol').ModelProtocol; baseUrl?: string; apiKey?: string; model?: string; reasoningEffort?: ReasoningEffort; contextWindow?: number; compactionThreshold?: CompactionThreshold }; result: ModelTestResult }
+  'settings:testModel': { args: { modelId?: string; channelId?: string; protocol?: import('./model-protocol').ModelProtocol; baseUrl?: string; apiKey?: string; model?: string; reasoningEffort?: ReasoningEffort; contextWindow?: number | null; compactionThreshold?: CompactionThreshold }; result: ModelTestResult }
 }
 
 export type Channel = keyof IpcContract
@@ -211,7 +212,7 @@ export const CHANNELS: readonly Channel[] = [
   'timeline:day', 'timeline:daysWithRecords', 'timeline:generateDaily',
   'capabilities:changePlugin', 'capabilities:resources', 'capabilities:readResource', 'capabilities:patchResources', 'capabilities:setToolEnabled', 'capabilities:setAgentEnabled', 'capabilities:setTaskSkills', 'capabilities:impact', 'capabilities:previewUpdate',
   'capabilities:setPluginEnabled', 'capabilities:previewPluginImport', 'capabilities:confirmPluginImport', 'capabilities:cancelPluginImport',
-  'capabilities:changeAgent', 'capabilities:changeSkill', 'capabilities:previewSkillImport', 'capabilities:confirmSkillImport', 'capabilities:cancelSkillImport', 'capabilities:runs', 'capabilities:removeRun', 'capabilities:catalog', 'agent:conversations', 'agent:create', 'agent:get', 'agent:send', 'agent:setReasoning', 'agent:confirm', 'agent:abort', 'agent:rename', 'agent:delete', 'agent:export',
+  'capabilities:changeAgent', 'capabilities:changeSkill', 'capabilities:previewSkillImport', 'capabilities:confirmSkillImport', 'capabilities:cancelSkillImport', 'capabilities:runs', 'capabilities:removeRun', 'capabilities:catalog', 'agent:conversations', 'agent:create', 'agent:get', 'agent:send', 'agent:setModel', 'agent:setReasoning', 'agent:confirm', 'agent:abort', 'agent:rename', 'agent:delete', 'agent:export',
   'jobs:list', 'jobs:retry', 'jobs:cancel',
   'settings:get', 'settings:set', 'settings:testModel', 'settings:modelBudget', 'settings:reasoning',
 ]

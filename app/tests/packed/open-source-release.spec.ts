@@ -1,3 +1,5 @@
+import { defaultModel } from '../helpers/models'
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -41,7 +43,7 @@ for (const protocol of MODEL_PROTOCOLS) test(`公开发行包 ${protocol}：资�
     await expect(page.getByTestId('dev-model')).toHaveCount(0)
     await page.getByTestId('model-skip').click(); await page.getByTestId('onboarding-start').click()
     await expect(page.getByTestId('shell')).toBeVisible()
-    await callOnPage(page, 'settings:set', { model: { protocol, baseUrl: fake.baseUrl, model: 'public-release', apiKey: key }, classify: { enabled: false }, daily: { enabled: false } })
+    await callOnPage(page, 'settings:set', { ...modelSettings({ protocol, baseUrl: fake.baseUrl, model: 'public-release', apiKey: key }, await callOnPage(page, 'settings:get', undefined)), classify: { enabled: false }, daily: { enabled: false } })
     const catalog = await callOnPage(page, 'capabilities:catalog', undefined)
     expect(catalog.agents.map(agent => agent.id)).toEqual(['default'])
     expect(catalog.plugins.map(plugin => plugin.id).sort()).toEqual(['jot-core', 'jot-productivity', 'work-review'])
@@ -63,7 +65,7 @@ for (const protocol of MODEL_PROTOCOLS) test(`公开发行包 ${protocol}：资�
     expect(fs.readFileSync(path.join(vault, note), 'utf8')).toContain(body)
     const settings = fs.readFileSync(path.join(data, 'settings.json'), 'utf8')
     expect(settings).not.toContain(key)
-    expect(JSON.parse(settings).model.apiKeyEnc).toMatch(/^enc:/)
+    expect(JSON.parse(settings).models.channels[0].apiKeyEnc).toMatch(/^enc:/)
     const sdkAuth = path.join(data, 'pi/auth.json')
     if (fs.existsSync(sdkAuth)) expect(fs.readFileSync(sdkAuth, 'utf8')).not.toContain(key)
     const conversationId = (await callOnPage(page, 'agent:conversations', {})).items[0]!.conversationId
@@ -71,7 +73,7 @@ for (const protocol of MODEL_PROTOCOLS) test(`公开发行包 ${protocol}：资�
     const requests = fake.requests.length
     app = await electron.launch({ executablePath: exe, env })
     page = await windowByUrl(app, 'index.html'); await expect(page.getByTestId('shell')).toBeVisible()
-    expect((await callOnPage(page, 'settings:get', undefined)).model).toMatchObject({ protocol, hasApiKey: true })
+    expect(defaultModel((await callOnPage(page, 'settings:get', undefined)))).toMatchObject({ protocol, hasApiKey: true })
     expect((await callOnPage(page, 'agent:get', { conversationId })).messages.at(-1)?.text).toContain('已保存并读取')
     expect(fake.requests).toHaveLength(requests)
   } finally {

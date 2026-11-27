@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import { test, expect, callOnPage } from './file-fixture'
 import { launch, shot } from './helpers'
 import { agentScript, isAgentRequest, isCompactionRequest, startFakeLlm } from '../helpers/fake-llm'
@@ -19,7 +20,7 @@ test('后台整理保留完整历史，重启后沿用摘要和最近原文，�
   const fake = await startFakeLlm(agentScript([() => '回答中保留明确需求'], req => isCompactionRequest(req) ? summary : '好'))
   let resumed: Awaited<ReturnType<typeof launch>> | undefined
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake', contextWindow: 16384 } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake', contextWindow: 16384 }, await call('settings:get', undefined)) })
     await page.keyboard.press('Control+l')
     await fill(page)
     await expect.poll(() => fake.requests.filter(isCompactionRequest).length).toBe(1)
@@ -62,7 +63,7 @@ test('只有空间不足显示整理状态，切回会话可恢复等待，停�
     return '好'
   }))
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake', contextWindow: 26624 } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake', contextWindow: 26624 }, await call('settings:get', undefined)) })
     await page.keyboard.press('Control+l')
     await fill(page)
     await expect.poll(() => fake.requests.filter(isCompactionRequest).length).toBe(1)
@@ -107,7 +108,7 @@ test('等待中的摘要完成后自动继续本轮回答，等待结束事件�
     return '好'
   }))
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake', contextWindow: 16384 } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake', contextWindow: 16384 }, await call('settings:get', undefined)) })
     await page.keyboard.press('Control+l')
     await fill(page)
     await expect.poll(() => fake.requests.filter(isCompactionRequest).length).toBe(1)

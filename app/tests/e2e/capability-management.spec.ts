@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Page } from '@playwright/test'
@@ -32,7 +33,7 @@ test('助手创建技能即时刷新目录，下一轮加载真实资源；覆�
     () => '技能与模板已保存，下轮可用。',
   ]))
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' }, appearance: { theme: 'light' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' }, await call('settings:get', undefined)), appearance: { theme: 'light' } })
     await page.getByTestId('ribbon-capabilities').click()
     await page.getByTestId('cap-tab-skills').click()
     await page.keyboard.press('Control+l')

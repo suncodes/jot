@@ -146,12 +146,24 @@ export class AgentService {
 
   private selection(value: AssistantContext): AssistantContext {
     let config: ReturnType<PiHost['configuration']>
-    try { config = this.deps.pi.configuration() } catch { return value }
+    try { config = this.deps.pi.configuration(value.modelId) } catch { return value }
     if (value.reasoningModel && value.reasoningModel !== modelIdentity(config)) {
       const { reasoningEffort: _effort, reasoningModel: _model, ...rest } = value
       return rest
     }
     return { ...value, ...(value.reasoningEffort ? { reasoningModel: modelIdentity(config) } : {}) }
+  }
+  setModel(conversationId: string, modelId: string | null): AssistantContext {
+    this.info(conversationId)
+    if ([...this.runs.values()].some(run => run.conversationId === conversationId)) throw new JotError('CONFLICT', '请先停止回答或等待回答结束，再切换模型')
+    if (modelId) this.deps.pi.configuration(modelId)
+    const row = this.db.prepare('SELECT selection FROM conversations WHERE id=?').get(conversationId) as { selection: string | null }
+    const current: AssistantContext = row.selection ? JSON.parse(row.selection) as AssistantContext : { agentId: 'default', references: [], strict: false, skillIds: [] }
+    const { modelId: _model, reasoningEffort: _effort, reasoningModel: _identity, ...base } = current
+    const context = { ...base, ...(modelId ? { modelId } : {}) }
+    this.db.prepare('UPDATE conversations SET selection=? WHERE id=?').run(JSON.stringify(context), conversationId)
+    this.compactor.cancel(conversationId)
+    return context
   }
   setReasoning(conversationId: string, effort: ReasoningEffort | null): AssistantContext {
     this.info(conversationId)
@@ -385,7 +397,7 @@ export class AgentService {
         run.waitingForCompaction = waiting
         if (waiting) run.waitedForCompaction = true
         emit({ type: 'compacting', waiting })
-      }, !run.waitedForCompaction),
+      }, !run.waitedForCompaction, modelConfig),
       onBudget: budget => {
         run.budget = budget
         this.checkpoint(conversationId, run, true)
@@ -513,7 +525,7 @@ export class AgentService {
     const selection = this.db.prepare('SELECT selection FROM conversations WHERE id=?').get(conversationId) as { selection: string | null }
     const inherited = selection.selection ? JSON.parse(selection.selection) as AssistantContext : undefined
     const prior = retry?.context
-    const chosen = context ?? (prior ? { agentId: prior.agentId, strict: prior.strict, skillIds: prior.skillIds, references: prior.references, reasoningEffort: prior.reasoningEffort, reasoningModel: prior.reasoningModel } : inherited ? { ...inherited, skillIds: [] } : undefined)
+    const chosen = context ?? (prior ? { agentId: prior.agentId, modelId: inherited?.modelId, strict: prior.strict, skillIds: prior.skillIds, references: prior.references, reasoningEffort: inherited?.reasoningEffort, reasoningModel: inherited?.reasoningModel } : inherited ? { ...inherited, skillIds: [] } : undefined)
     const request = chosen && this.selection(chosen)
     const run: Run = { runId: ulid(), messageId: '', checkpointAt: 0, startedAt: Date.now(), scope: {}, text: '', toolCalls: [], parts: [], approved: new Set(), rejected: new Set(), aborted: false, controller: new AbortController() }
     const userMessage = this.db.transaction(() => {
@@ -538,20 +550,22 @@ export class AgentService {
   private async execute(conversationId: string, run: Run, question: string, userMessageId: string, request?: AssistantContext): Promise<void> {
     const base = { runId: run.runId, conversationId }
     let live: Live | undefined
+    let modelConfig: ModelConfig | undefined
     let failure: { code: string; message: string } | null = null
     try {
-      let modelConfig: ModelConfig | undefined
-      try { modelConfig = this.deps.pi.configuration() } catch { /* 未配置仍保存本轮能力与材料，随后明确返回配置错误。 */ }
+      let modelError: unknown
+      try { modelConfig = this.deps.pi.configuration(request?.modelId) } catch (error) { modelError = error }
       const { context, skills, resources } = await this.deps.fileOps.mutate(() => prepareTurn(this.deps.vault, this.deps.index, request))
       run.context = context
       run.context.model = modelConfig?.model
+      if (modelConfig) run.context.modelUse = { id: modelConfig.id, name: modelConfig.name, channelId: modelConfig.channelId, channelName: modelConfig.channelName, protocol: modelConfig.protocol, model: modelConfig.model }
       this.db.prepare('UPDATE messages SET tool_calls = ? WHERE id = ?').run(JSON.stringify({ context: run.context, runId: run.runId }), userMessageId)
       this.checkpoint(conversationId, run, true)
       if (run.context.strict) run.scope.materials = run.context.references.map(r => ({ kind: r.kind, value: r.value }))
-      this.db.prepare('UPDATE conversations SET selection=? WHERE id=?').run(JSON.stringify({ agentId: run.context.agentId, references: run.context.references, strict: run.context.strict, skillIds: [], reasoningEffort: run.context.reasoningEffort, reasoningModel: run.context.reasoningModel }), conversationId)
+      this.db.prepare('UPDATE conversations SET selection=? WHERE id=?').run(JSON.stringify({ agentId: run.context.agentId, modelId: run.context.modelId, references: run.context.references, strict: run.context.strict, skillIds: [], reasoningEffort: run.context.reasoningEffort, reasoningModel: run.context.reasoningModel }), conversationId)
       if (run.aborted) throw new Error('已停止')
       const history = this.messages(conversationId).filter(message => message.messageId !== userMessageId)
-      if (!modelConfig) throw new JotError('LLM_NOT_CONFIGURED', '还没有配置模型')
+      if (!modelConfig) throw modelError ?? new JotError('LLM_NOT_CONFIGURED', '还没有配置模型')
       live = await this.session(conversationId, run, skills, resources, history, modelConfig)
       if (run.aborted) throw new Error('已停止')
       const now = this.deps.now?.() ?? new Date()
@@ -582,7 +596,7 @@ export class AgentService {
     else this.deps.emit({ ...base, type: 'done', message })
     this.deps.changed?.(conversationId, false)
     if (!run.aborted && !failure && run.budget && run.context) {
-      this.compactor.schedule(conversationId, this.messages(conversationId), run.context.strict, run.budget, run.text)
+      this.compactor.schedule(conversationId, this.messages(conversationId), run.context.strict, run.budget, run.text, modelConfig)
     }
   }
 

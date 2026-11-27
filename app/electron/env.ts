@@ -6,6 +6,10 @@ import { DEFAULT_MODEL_PROTOCOL, MODEL_PROTOCOLS, type ModelProtocol } from '@sh
 import { JotError } from '@shared/result'
 
 export interface ModelConfig extends ModelBudgetOverrides {
+  id?: string
+  name?: string
+  channelId?: string
+  channelName?: string
   protocol?: ModelProtocol
   reasoningEffort?: ReasoningEffort
   baseUrl: string

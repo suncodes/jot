@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Page } from '@playwright/test'
@@ -33,7 +34,7 @@ test('同一对话建目录笔记、属性归档、回收恢复，界面即时�
   ]))
   let resumed: Awaited<ReturnType<typeof launch>> | undefined
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' }, await call('settings:get', undefined)) })
     await page.getByTestId('ribbon-library').click(); await page.getByTestId('library-all').click()
     await page.keyboard.press('Control+l')
     await ask(page, '新建U2工作目录及业务规则，打标签、归档，再回收并恢复')
@@ -68,7 +69,7 @@ test('全局解除及永久清理确认可取消，深色窄窗可操作，助�
     () => '按用户选择结束操作。',
   ]))
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' }, await call('settings:get', undefined)) })
     await page.keyboard.press('Control+l')
     await ask(page, '全局解除待解除标签')
     await expect(page.getByTestId('agent-confirmation')).toContainText(file)
@@ -129,7 +130,7 @@ test('后台任务返回排队状态、真实编号及取消结果，不把已�
     () => '已安排的分析任务已取消。',
   ]))
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' }, await call('settings:get', undefined)) })
     await page.keyboard.press('Control+l')
     await ask(page, '安排资料分析，查看状态，然后取消')
     await done(page, 1)
@@ -153,7 +154,7 @@ test('畸形工具参数显示完整原文和明确原因，字段纠正后可�
     () => '已纠正参数，保存并核对当前文件。',
   ]))
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' }, await call('settings:get', undefined)) })
     await page.keyboard.press('Control+l')
     await ask(page, '创建笔记并检查实际结果')
     await done(page, 1)

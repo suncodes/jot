@@ -1,5 +1,4 @@
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -7,12 +6,21 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 const appRoot = path.resolve(import.meta.dirname, '../..')
 const root = path.dirname(appRoot)
-const temp: string[] = []
-function scratch() { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jot-public-source-')); temp.push(dir); return dir }
+const temp: (() => void)[] = []
+function scratch() {
+  const parent = path.join(root, 'tmp/open-source')
+  fs.mkdirSync(parent, { recursive: true })
+  const dir = fs.mkdtempSync(path.join(parent, 'test-'))
+  temp.push(() => {
+    if (!path.resolve(dir).startsWith(parent + path.sep)) throw new Error('源码导出测试路径越界')
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
+  return dir
+}
 const script = (name: string) => path.join(appRoot, 'scripts', name)
 const run = (file: string, args: string[]) => execFileSync(process.execPath, [file, ...args], { encoding: 'utf8', env: { ...process.env, JOT_NO_DOTENV: '1' } })
 interface Manifest { version: string; files: { path: string; bytes: number; sha256: string }[] }
-afterEach(() => { for (const dir of temp.splice(0)) fs.rmSync(dir, { recursive: true, force: true }) })
+afterEach(() => { for (const cleanup of temp.splice(0)) cleanup() })
 
 describe('公开源码与发行入口', () => {
   it('标签与当前版本必须匹配；校验不会修改版本或创建Git记录', () => {

@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import path from 'node:path'
 import { PiHost } from '../../electron/agent/pi'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -31,7 +32,7 @@ function seed(turns = 6): ChatMessage[] {
 }
 beforeEach(async () => {
   app = await testApp()
-  await app.call('settings:set', { model: { baseUrl: app.fake.baseUrl, apiKey: 'fake', model: 'fake', contextWindow: limits.contextWindow } })
+  await app.call('settings:set', { ...modelSettings({ baseUrl: app.fake.baseUrl, apiKey: 'fake', model: 'fake', contextWindow: limits.contextWindow }, app.core.settings.get()) })
   id = app.core.agent.create().conversationId
   messages = seed()
   compactor = new ConversationCompactor({ state: app.core.state, pi: host(), cwd: () => app.core.vault.path }, { requestMs: 15_000, waitMs: 30 })
@@ -40,7 +41,7 @@ afterEach(async () => { compactor.cancel(); await app.close() })
 
 describe('后台压缩、持久化和并发', () => {
   it('压缩独立于全局高强度，未知接口使用模型默认并保留输出空间', async () => {
-    await app.call('settings:set', { model: { reasoningEffort: 'high' } })
+    await app.call('settings:set', { ...modelSettings({ reasoningEffort: 'high' }, app.core.settings.get()) })
     app.fake.setResponder(() => summaryText)
     compactor.schedule(id, messages, false, pressure, '本轮结束')
     await expect.poll(() => rows().length, { timeout: 10000 }).toBe(1)

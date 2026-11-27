@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import { expect, type Page } from '@playwright/test'
@@ -152,7 +153,7 @@ export async function installAndReport(page: Page, vault: string, fake: FakeLlm)
   await expect(page.getByTestId('cap-plugin-detail')).toContainText('work-report')
   await page.getByTestId('cap-plugin-toggle').click()
   await expect(page.getByTestId('cap-plugin-toggle')).toHaveText('停用')
-  await callOnPage(page, 'settings:set', { model: { baseUrl: fake.baseUrl, apiKey: 'w5-fake-secret', model: 'w5-report', contextWindow: 65536 } })
+  await callOnPage(page, 'settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, apiKey: 'w5-fake-secret', model: 'w5-report', contextWindow: 65536 }, await callOnPage(page, 'settings:get', undefined)) })
   const dailyReply = await generate(page, fake, { kind: 'daily', date: '2026-01-02' }, [draft, engineering, januaryOkr], '静态检查通过，尚未真实联调，未发布。')
   expect((JSON.parse(dailyReply.toolCalls![3]!.output!) as WorkReportPlan).path).toBe(daily)
   await callOnPage(page, 'doc:patchProperties', { path: daily, patch: { custom: 'W5人工属性' } })
@@ -235,4 +236,3 @@ export function removeWorkReportIndex(vault: string): void {
     if (fs.existsSync(index)) fs.unlinkSync(index)
   }
 }
-

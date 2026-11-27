@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Page } from '@playwright/test'
@@ -25,7 +26,7 @@ test('实用技能可通过$引用，跨笔记简报、计算和来源走真实�
   const fake = await startFakeLlm(script())
   let resumed: Awaited<ReturnType<typeof launch>> | undefined
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'u6-model', apiKey: 'fake' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'u6-model', apiKey: 'fake' }, await call('settings:get', undefined)) })
     write(first, '甲预算0.1万元，已完成接口验证。'); write(second, '乙预算0.2万元，目前还是讨论方案。')
     await call('vault:refreshIndex', {})
     await page.keyboard.press('Control+l')
@@ -93,7 +94,7 @@ test('助手按技能管理指引创建能力，下一轮通过/引用加载；�
     () => '已创建我的提纲，下轮可使用。',
   ]))
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'u6-model', apiKey: 'fake' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'u6-model', apiKey: 'fake' }, await call('settings:get', undefined)) })
     await page.getByTestId('ribbon-capabilities').click(); await page.getByTestId('cap-tab-skills').click()
     await page.keyboard.press('Control+l')
     await ask(page, '创建一个提纲技能，按事实、依据和待补问题整理。', 1)

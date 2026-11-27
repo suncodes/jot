@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,7 +16,7 @@ const answer = JSON.stringify({ oneLine: '完成明确记录中的事项', done:
 
 describe('U4 共用执行器与日总结', () => {
   it('在途改档只影响下一轮，当前工具续跑继续使用启动档位', async () => {
-    await app.call('settings:set', { model: { reasoningEffort: 'high' } })
+    await app.call('settings:set', { ...modelSettings({ reasoningEffort: 'high' }, app.core.settings.get()) })
     const started = deferred(), hold = deferred(), before = app.fake.requests.length
     app.fake.setResponder(async (_req, index) => {
       if (index === before) { started.release(); await hold.promise; return { toolCall: { name: 'stats', arguments: {} } } }
@@ -24,7 +25,7 @@ describe('U4 共用执行器与日总结', () => {
     const id = app.core.agent.create().conversationId
     const { runId } = app.core.agent.send(id, '核对统计')
     await started.promise
-    await app.call('settings:set', { model: { reasoningEffort: 'low' } })
+    await app.call('settings:set', { ...modelSettings({ reasoningEffort: 'low' }, app.core.settings.get()) })
     expect(app.core.agent.get(id).running).toBe(runId)
     hold.release(); await app.core.agent.wait(runId)
     expect(app.core.agent.get(id).messages.at(-1)?.error).toBeUndefined()
@@ -34,7 +35,7 @@ describe('U4 共用执行器与日总结', () => {
   })
 
   it('默认技能真实加载，后台继承全局且不带聊天历史或文件管理工具', async () => {
-    await app.call('settings:set', { model: { reasoningEffort: 'high' } })
+    await app.call('settings:set', { ...modelSettings({ reasoningEffort: 'high' }, app.core.settings.get()) })
     app.fake.setResponder(agentScript([() => '私人回答'], () => answer))
     const conversation = app.core.agent.create()
     const run = app.core.agent.send(conversation.conversationId, '不应进入后台的私人问题', { agentId: 'default', references: [], skillIds: [], strict: false, reasoningEffort: 'low' })
@@ -59,7 +60,7 @@ describe('U4 共用执行器与日总结', () => {
   })
 
   it('格式错误最多纠正一次，纠正沿用同一模型与推理档位', async () => {
-    await app.call('settings:set', { model: { reasoningEffort: 'high' } })
+    await app.call('settings:set', { ...modelSettings({ reasoningEffort: 'high' }, app.core.settings.get()) })
     const before = app.fake.requests.length
     app.fake.setResponder((_req, index) => index === before ? '{"oneLine":null}' : answer)
     const task = await app.core.executor.prepare('daily')
@@ -108,7 +109,7 @@ describe('U4 共用执行器与日总结', () => {
   })
 
   it('显式强度拒绝立即失败并记录原档位，不自动去参或队列重试', async () => {
-    await app.call('settings:set', { model: { reasoningEffort: 'high' } })
+    await app.call('settings:set', { ...modelSettings({ reasoningEffort: 'high' }, app.core.settings.get()) })
     await app.call('capture:save', { text: '今天完成测试', source: 'main-window' }); await app.core.idle()
     app.fake.setResponder(() => ({ status: 400, body: '{"error":{"message":"unsupported reasoning_effort high"}}' }))
     const before = app.fake.requests.length, { jobId } = await app.core.daily.request(date)
@@ -159,7 +160,7 @@ describe('U4 共用执行器与日总结', () => {
   })
 
   it('对话覆盖跨重启承接，显式auto覆盖全局，更换模型清除后续覆盖', async () => {
-    await app.call('settings:set', { model: { reasoningEffort: 'high' } })
+    await app.call('settings:set', { ...modelSettings({ reasoningEffort: 'high' }, app.core.settings.get()) })
     app.fake.setResponder(() => '完成')
     const id = app.core.agent.create().conversationId
     const run = app.core.agent.send(id, '第一个问题', { agentId: 'default', references: [], strict: false, skillIds: [], reasoningEffort: 'auto' })
@@ -169,14 +170,14 @@ describe('U4 共用执行器与日总结', () => {
     await app.call('agent:setReasoning', { conversationId: id, effort: 'low' })
     expect(app.core.agent.get(id).context?.reasoningEffort).toBe('low')
     await app.call('agent:setReasoning', { conversationId: id, effort: 'auto' })
-    const identity = reasoningModelKey(app.core.settings.get().model)
+    const identity = reasoningModelKey(app.core.settings.getModelConfig()!)
     await app.reopen()
     expect(app.core.agent.get(id).context).toMatchObject({ reasoningEffort: 'auto', reasoningModel: identity })
     const next = app.core.agent.send(id, '接着做'); await app.core.agent.wait(next.runId)
     expect(app.fake.requests.at(-1)?.reasoning_effort).toBeUndefined()
-    await app.call('settings:set', { model: { baseUrl: app.fake.baseUrl, model: 'new-model' } })
+    await app.call('settings:set', { ...modelSettings({ baseUrl: app.fake.baseUrl, model: 'new-model' }, app.core.settings.get()) })
     expect(app.core.agent.get(id).context?.reasoningEffort).toBeUndefined()
-    await app.call('settings:set', { model: { model: 'fake' } })
+    await app.call('settings:set', { ...modelSettings({ model: 'fake' }, app.core.settings.get()) })
     expect(app.core.agent.get(id).context?.reasoningEffort).toBeUndefined()
     expect(app.core.agent.get(id).messages[1]?.context?.reasoning?.requested).toBe('auto')
     await expect(app.core.executor.prepare('daily', AbortSignal.abort())).rejects.toMatchObject({ code: 'CANCELLED' })

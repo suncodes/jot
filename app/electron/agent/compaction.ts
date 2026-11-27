@@ -1,3 +1,4 @@
+import type { ModelConfig } from '../env'
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import type { ContextBudget } from '@shared/model-budget'
 import type { ChatMessage } from '@shared/types'
@@ -12,7 +13,7 @@ type Mode = 'normal' | 'strict'
 interface Summary { through_message_id: string; summary: string }
 interface Turn { end: string; text: string }
 interface Projection { summary: string; history: string[]; covered: number }
-interface Task { controller: AbortController; done: Promise<void> }
+interface Task { modelIdentity: string; controller: AbortController; done: Promise<void> }
 interface CompactionDeps {
   state: StateStore
   pi: PiHost
@@ -78,11 +79,11 @@ export class ConversationCompactor {
 
   /** 只有历史需要裁剪且压缩可能有用时短暂等待；必要材料本身超限则直接回退。 */
   async prepare(id: string, messages: ChatMessage[], strict: boolean, payload: ModelPayload, limits: ModelLimits, model: string,
-    signal: AbortSignal, waiting: (value: boolean) => void, allowWait = true): Promise<BudgetedRequest> {
+    signal: AbortSignal, waiting: (value: boolean) => void, allowWait = true, modelConfig?: ModelConfig): Promise<BudgetedRequest> {
     if (signal.aborted) throw new JotError('CANCELLED', '操作已停止')
     let request = this.fit(id, messages, strict, payload, limits, model)
     if (allowWait && request.budget.omittedHistoryTurns && !fitModelRequest(payload, [], limits, model).budget.blocked) {
-      const task = this.start(id, messages, strict, limits)
+      const task = this.start(id, messages, strict, limits, modelConfig)
       if (task) {
         waiting(true)
         try { await this.wait(task, signal) } finally { waiting(false) }
@@ -94,17 +95,19 @@ export class ConversationCompactor {
   }
 
   /** 本轮结束后按下一轮的输入压力提前整理，不阻塞发送和浏览。 */
-  schedule(id: string, messages: ChatMessage[], strict: boolean, budget: ContextBudget, answer: string): void {
+  schedule(id: string, messages: ChatMessage[], strict: boolean, budget: ContextBudget, answer: string, modelConfig?: ModelConfig): void {
     const added = estimateInputTokens([{ role: 'assistant', content: answer }])
     if (budget.inputTokens + added < budget.contextWindow * budget.compactionThreshold && !budget.omittedHistoryTurns) return
-    this.start(id, messages, strict, budget)
+    this.start(id, messages, strict, budget, modelConfig)
   }
 
-  private start(id: string, messages: ChatMessage[], strict: boolean, limits: ModelLimits): Task | undefined {
+  private start(id: string, messages: ChatMessage[], strict: boolean, limits: ModelLimits, modelConfig?: ModelConfig): Task | undefined {
     const key = keyOf(id, strict), running = this.tasks.get(key)
-    if (running) return running
+    const modelIdentity = JSON.stringify(modelConfig ?? null)
+    if (running?.modelIdentity === modelIdentity) return running
+    if (running) this.cancel(id)
     const turns = turnsOf(messages, strict), last = turns.at(-1)?.end
-    if (!last || turns.length < 6 || this.attempted.get(key) === last) return
+    if (!last || turns.length < 6 || this.attempted.get(key) === modelIdentity + last) return
     const previous = this.stored(id, strict)
     const covered = previous ? turns.findIndex(turn => turn.end === previous.through_message_id) + 1 : 0
     const candidates = turns.slice(covered, -KEEP_RECENT)
@@ -120,9 +123,9 @@ export class ConversationCompactor {
     }
     if (!low) return
     const selected = candidates.slice(0, low), through = selected.at(-1)!.end
-    const task: Task = { controller: new AbortController(), done: Promise.resolve() }
+    const task: Task = { modelIdentity, controller: new AbortController(), done: Promise.resolve() }
     this.tasks.set(key, task)
-    this.attempted.set(key, last)
+    this.attempted.set(key, modelIdentity + last)
     const database = this.deps.state.raw
     task.done = this.summarize(task, system, summaryInput(previous?.summary ?? '', selected), output, async summary => {
       if (task.controller.signal.aborted || this.tasks.get(key) !== task || !this.deps.state.isOpen || this.deps.state.raw !== database) return
@@ -131,11 +134,11 @@ export class ConversationCompactor {
       if (this.stored(id, strict)?.through_message_id !== previous?.through_message_id) return
       database.prepare('INSERT INTO conversation_summaries(conversation_id, mode, through_message_id, summary, updated_at) VALUES (?,?,?,?,?) ON CONFLICT(conversation_id, mode) DO UPDATE SET through_message_id=excluded.through_message_id, summary=excluded.summary, updated_at=excluded.updated_at')
         .run(id, modeOf(strict), through, summary, localIso(this.deps.now?.() ?? new Date()))
-    }).finally(() => { if (this.tasks.get(key) === task) this.tasks.delete(key) })
+    }, modelConfig).finally(() => { if (this.tasks.get(key) === task) this.tasks.delete(key) })
     return task
   }
 
-  private async summarize(task: Task, system: string, input: string, output: number, save: (summary: string) => Promise<void>): Promise<void> {
+  private async summarize(task: Task, system: string, input: string, output: number, save: (summary: string) => Promise<void>, modelConfig?: ModelConfig): Promise<void> {
     let session: AgentSession | undefined
     const { signal } = task.controller
     let cancel!: () => void
@@ -145,7 +148,7 @@ export class ConversationCompactor {
     const timer = setTimeout(() => task.controller.abort(), this.timing.requestMs)
     timer.unref()
     const work = async (): Promise<void> => {
-      session = await this.deps.pi.createSession({ cwd: this.deps.cwd(), systemPrompt: system, tools: [], internalReasoning: true })
+      session = await this.deps.pi.createSession({ cwd: this.deps.cwd(), systemPrompt: system, tools: [], internalReasoning: true, modelConfig })
       if (signal.aborted) { session.dispose(); return }
       try {
         await session.prompt(input, { expandPromptTemplates: false })

@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -35,7 +36,7 @@ test('U6候选包：实用插件和参考资源可用，精确计算依赖随包
     await page.getByTestId('vault-path').fill(vault); await page.getByTestId('vault-use').click()
     await page.getByTestId('model-skip').click(); await page.getByTestId('onboarding-start').click()
     await expect(page.getByTestId('shell')).toBeVisible()
-    await callOnPage(page, 'settings:set', { model: { baseUrl: fake.baseUrl, model: 'packed-u6', apiKey: 'fake' }, daily: { enabled: false }, classify: { enabled: false } })
+    await callOnPage(page, 'settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'packed-u6', apiKey: 'fake' }, await callOnPage(page, 'settings:get', undefined)), daily: { enabled: false }, classify: { enabled: false } })
     const catalog = await callOnPage(page, 'capabilities:catalog', undefined)
     expect(catalog.plugins.find(pkg => pkg.id === 'jot-productivity')).toMatchObject({ enabled: true, agentIds: [], issues: [] })
     expect(catalog.tools.find(tool => tool.id === 'calculator')).toMatchObject({ enabled: true, access: 'read' })

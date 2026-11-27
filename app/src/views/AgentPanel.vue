@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { resolveModelSettings } from '@shared/models'
 import { t } from '@/strings'
 import { ArrowDown, ArrowUpRight, CalendarDays, FileText, History, PanelRightClose, Plus, Search, Sparkles } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
@@ -17,7 +18,12 @@ const {
 const app = useAppStore()
 const composer = ref<InstanceType<typeof AssistantComposer> | null>(null)
 const budget = computed(() => stream.value?.budget ?? (stream.value ? undefined : messages.value.findLast(message => message.role === 'assistant')?.budget))
-const currentBudget = computed(() => budget.value && budget.value.model === app.settings?.model.model ? budget.value : undefined)
+const currentBudget = computed(() => {
+  const model = app.settings && resolveModelSettings(app.settings.models, draft.value.context.modelId ?? app.settings.models.defaultModelId)
+  const message = stream.value ?? messages.value.findLast(message => message.role === 'assistant')
+  return budget.value && model && message?.context?.modelUse?.id === model.id && message.context.modelUse.protocol === model.protocol
+    && budget.value.model === model.model && (!model.contextWindow || budget.value.contextWindow === model.contextWindow) ? budget.value : undefined
+})
 const conversationDate = computed(() => {
   const stamp = messages.value[0]?.createdAt
   return stamp ? new Date(stamp).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }) : ''
@@ -41,7 +47,7 @@ const c = t.agent
       <div class="conversation-heading"><span class="assistant-symbol"><Sparkles :size="21" /></span><div><span class="assistant-label">{{ c.panelLabel }}</span><h1 class="head-title" data-testid="agent-title" :title="current?.title">{{ current?.title || c.newChat }}</h1></div></div>
       <div class="head-actions"><button class="ghost icon-button" :title="c.newChat" :aria-label="c.newChat" data-testid="agent-new" :disabled="loading" @click="newChat"><Plus :size="16" /></button><button class="ghost icon-button" :title="c.history" :aria-label="c.history" data-testid="agent-history" aria-haspopup="dialog" :aria-expanded="showHistory" @click="showHistory = true"><History :size="16" /></button><button class="ghost icon-button" :title="c.close" :aria-label="c.close" data-testid="agent-close" @click="emit('close')"><PanelRightClose :size="16" /></button></div>
     </header>
-    <div v-if="app.modelState === 'not-configured'" class="model-hint small muted" data-testid="agent-no-model">{{ c.noModel }}<button class="ghost" @click="app.settingsSection = 'model'; app.showSettings = true">{{ c.goSettings }}</button></div>
+    <div v-if="!app.settings?.models.defaultModelId && !draft.context.modelId" class="model-hint small muted" data-testid="agent-no-model">{{ c.noModel }}<button class="ghost" @click="app.settingsSection = 'model'; app.showSettings = true">{{ c.goSettings }}</button></div>
     <div class="message-area">
       <div ref="scroller" class="messages" data-testid="agent-messages" role="region" :aria-label="c.history" tabindex="0" @scroll="trackScroll">
         <div v-if="!messages.length && !stream" class="welcome" data-testid="agent-empty">

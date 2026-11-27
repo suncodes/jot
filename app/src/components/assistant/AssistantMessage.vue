@@ -172,7 +172,7 @@ function more(action: string): void {
     <AppDialog v-if="inspectContext && message.context" :title="c.referenceMaterials" class="assistant-dialog assistant-reference-dialog" scroll-body @close="inspectContext = false">
       <template #heading><div class="assistant-dialog-heading"><p>{{ c.turnBasis }}</p><h2>{{ c.referenceMaterials }}</h2></div></template>
       <p class="reference-detail-note">{{ message.context.agent.name }} · {{ message.context.strict ? c.limited : c.referenceCaption }}</p>
-      <p v-if="message.context.model" class="reference-detail-note">{{ t.capabilities.model }}：{{ message.context.model }}</p>
+      <p v-if="message.context.model" class="reference-detail-note">{{ t.capabilities.model }}：{{ message.context.modelUse?.channelName ? message.context.modelUse.channelName + ' / ' : '' }}{{ message.context.modelUse?.name || message.context.model }}</p>
       <ReasoningDetails v-if="message.context.reasoning" :reasoning="message.context.reasoning" />
       <p v-if="!message.context.references.length" class="reference-detail-note">{{ c.noMaterials }}</p>
       <details v-for="reference in message.context.references" :key="reference.kind + reference.value" class="material-reference" data-testid="agent-material-reference">

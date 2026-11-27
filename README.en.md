@@ -10,7 +10,7 @@ This is a **0.x preview** for Windows x64. Keep independent backups of important
 
 - Quick idea capture, nested content folders, Markdown editing and preview, properties, pinned files and folders, and navigation to the current file.
 - A timeline and skill-based daily reviews, with separate plugins for personal diaries and work reports.
-- A general assistant with `@` references, `$` or `/` skill selection, visible tool activity and citations, context usage estimates, compaction status, and reasoning effort selection.
+- A general assistant with `@` references, `$` or `/` skill selection, visible tool activity and citations, context usage estimates, compaction status, multiple provider channels and models, per-conversation model switching, and reasoning effort selection.
 - Local agent, skill, and AI plugin management with dependency checks. Declarative application plugins provide configurable shortcuts and diary actions.
 - File tools default to the selected notebook. Explicit absolute paths allow access outside it. Destructive operations and full-file replacement use application confirmation.
 

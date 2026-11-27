@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -30,7 +31,7 @@ test('U5候选包：四类技能资源、三类实际后台任务及全局档位
     await page.getByTestId('vault-path').fill(vault); await page.getByTestId('vault-use').click()
     await page.getByTestId('model-skip').click(); await page.getByTestId('onboarding-start').click()
     await expect(page.getByTestId('shell')).toBeVisible()
-    await callOnPage(page, 'settings:set', { model: { baseUrl: fake.baseUrl, model: 'packed-u5', apiKey: 'fake', reasoningEffort: 'high' }, daily: { enabled: false }, classify: { enabled: false } })
+    await callOnPage(page, 'settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'packed-u5', apiKey: 'fake', reasoningEffort: 'high' }, await callOnPage(page, 'settings:get', undefined)), daily: { enabled: false }, classify: { enabled: false } })
     const catalog = await callOnPage(page, 'capabilities:catalog', undefined)
     expect(catalog.taskBindings).toHaveLength(4)
     expect(catalog.taskBindings.every(binding => binding.issues.length === 0)).toBe(true)

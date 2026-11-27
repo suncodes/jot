@@ -8,6 +8,7 @@ import type { MenuAction } from '@/utils/objectActions'
 const { actions, label = t.actions.more, triggerId = 'object-more', menuId = 'object-menu', icon = 'more', primaryAction = undefined, descriptionId = undefined, prepare = undefined } = defineProps<{
   actions: MenuAction[]; label?: string; triggerId?: string; menuId?: string; icon?: 'more' | 'plus'; primaryAction?: string; descriptionId?: string; prepare?: () => Promise<void>
 }>()
+defineOptions({ inheritAttrs: false })
 const emit = defineEmits<{ select: [id: string] }>()
 const button = ref<HTMLButtonElement | null>(null)
 const popup = ref<HTMLElement | null>(null)
@@ -115,7 +116,7 @@ onBeforeUnmount(() => {
 defineExpose({ open, close })
 </script>
 <template>
-  <button ref="button" type="button" class="ghost icon-button object-more" :title="primaryAction ? undefined : label" :aria-label="label" :aria-describedby="descriptionId" :aria-haspopup="primaryAction ? undefined : 'menu'" :aria-expanded="primaryAction ? undefined : opened" :disabled="primaryAction ? actions.find(action => action.id === primaryAction)?.disabled : false" :data-testid="triggerId" @click.stop="primaryAction ? emit('select', primaryAction) : open($event)" @contextmenu="context" @keydown="rowKey"><slot><Plus v-if="icon === 'plus'" :size="16" /><MoreHorizontal v-else :size="16" /></slot></button>
+  <button ref="button" v-bind="$attrs" type="button" class="ghost icon-button object-more" :title="primaryAction ? undefined : label" :aria-label="label" :aria-describedby="descriptionId" :aria-haspopup="primaryAction ? undefined : 'menu'" :aria-expanded="primaryAction ? undefined : opened" :disabled="primaryAction ? actions.find(action => action.id === primaryAction)?.disabled : false" :data-testid="triggerId" @click.stop="primaryAction ? emit('select', primaryAction) : open($event)" @contextmenu="context" @keydown="rowKey"><slot><Plus v-if="icon === 'plus'" :size="16" /><MoreHorizontal v-else :size="16" /></slot></button>
   <Teleport :to="button?.closest('dialog') ?? 'body'">
     <div v-if="opened" class="object-menu-backdrop" @pointerdown.prevent="close(true)" @contextmenu.prevent="close(true)" />
     <div v-if="opened" ref="popup" class="object-menu" role="menu" :aria-label="label" :style="position" :data-testid="menuId" @keydown="menuKey">

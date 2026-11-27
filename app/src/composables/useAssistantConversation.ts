@@ -1,3 +1,4 @@
+import { resolveModelSettings } from '@shared/models'
 import { mappedPath } from '@shared/files'
 import { reasoningModelKey } from '@shared/reasoning'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
@@ -61,7 +62,7 @@ export function useAssistantConversation() {
   function restoreDraft(id: string, data: ChatMessage[], selection?: AssistantContext): void {
     if (drafts[id]) return
     const context = selection ?? data.filter(m => m.role === 'user' && m.context).at(-1)?.context
-    drafts[id] = { ...blank(), submitted: data.length > 0, ...(context ? { context: { agentId: context.agentId, strict: context.strict, skillIds: [], references: context.references.map(r => ({ ...r })), reasoningEffort: context.reasoningEffort, reasoningModel: context.reasoningModel } } : {}) }
+    drafts[id] = { ...blank(), submitted: data.length > 0, ...(context ? { context: { agentId: context.agentId, modelId: context.modelId, strict: context.strict, skillIds: [], references: context.references.map(r => ({ ...r })), reasoningEffort: context.reasoningEffort, reasoningModel: context.reasoningModel } } : {}) }
   }
   async function openConversation(id: string): Promise<void> {
     const mine = ++openSequence
@@ -138,9 +139,15 @@ export function useAssistantConversation() {
   async function setContext(context: AssistantContext): Promise<void> {
     const original = draft.value, previous = original.context
     original.context = context
-    if (!current.value || previous.reasoningEffort === context.reasoningEffort && previous.reasoningModel === context.reasoningModel) return
-    try { await call('agent:setReasoning', { conversationId: current.value.conversationId, effort: context.reasoningEffort ?? null }) }
-    catch (e) { error.value = (e as Error).message }
+    const modelChanged = previous.modelId !== context.modelId
+    const reasoningChanged = previous.reasoningEffort !== context.reasoningEffort || previous.reasoningModel !== context.reasoningModel
+    if (!current.value || !modelChanged && !reasoningChanged) return
+    loading.value = true
+    try {
+      if (modelChanged) await call('agent:setModel', { conversationId: current.value.conversationId, modelId: context.modelId ?? null })
+      else await call('agent:setReasoning', { conversationId: current.value.conversationId, effort: context.reasoningEffort ?? null })
+    } catch (cause) { original.context = previous; error.value = (cause as Error).message }
+    finally { loading.value = false }
   }
   async function stop(): Promise<void> { if (stream.value?.runId) await call('agent:abort', { runId: stream.value.runId }) }
   function appendPart(delta: string): void {
@@ -206,9 +213,11 @@ export function useAssistantConversation() {
     if (value) { app.openConversation = null; void openConversation(value) }
   }, { immediate: true })
   watch(() => cap.conversationRequest, value => { if (value) void openConversation(value.id) }, { immediate: true })
-  watch(() => app.settings && reasoningModelKey(app.settings.model), (value, previous) => {
-    if (!previous || value === previous) return
+  watch(() => app.settings?.models, catalog => {
+    if (!catalog) return
     for (const item of Object.values(drafts)) {
+      const model = resolveModelSettings(catalog, item.context.modelId ?? catalog.defaultModelId)
+      if (!model || !item.context.reasoningModel || item.context.reasoningModel === reasoningModelKey(model)) continue
       delete item.context.reasoningEffort
       delete item.context.reasoningModel
     }

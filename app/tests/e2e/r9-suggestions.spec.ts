@@ -1,3 +1,4 @@
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import { test, expect } from './file-fixture'
@@ -44,7 +45,7 @@ test('R9 低把握建议先确认，属性可调整；更换目录实际移动�
   const fake = await startFakeLlm(() => JSON.stringify({ directoryPath: 'content/工作', tags: ['业务'], place: '公司', people: ['林舟'], confidence: 0.25, reason: '目录只有部分依据，请确认' }))
   const rel = 'inbox/2026/11/业务规则.md'
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' }, await call('settings:get', undefined)) })
     write(rel, '---\ntags: [人工标签]\n---\n虚构业务规则')
     await call('vault:refreshIndex', {})
     await page.getByTestId('ribbon-library').click()
@@ -81,7 +82,7 @@ test('R9 内容菜单发起灵感分析，错误反馈跨重启，重试成功�
   const fake = await startFakeLlm(() => '错误 JSON')
   let resumed: Awaited<ReturnType<typeof launch>> | undefined
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' }, await call('settings:get', undefined)) })
     write(rel, '一条长期灵感')
     await call('vault:refreshIndex', {})
     await page.getByTestId('ribbon-library').click()
@@ -117,7 +118,7 @@ test('R9 无推荐结果留说明，空正文不调用模型，人工仍可整�
   const { page, call, write } = jot
   const fake = await startFakeLlm(() => JSON.stringify({ directoryPath: null, tags: [], people: [], confidence: 0.1, reason: '正文缺少归属线索' }))
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'fake', apiKey: 'fake' }, await call('settings:get', undefined)) })
     write('inbox/2026/11/无推荐.md', '尚不确定用途')
     await call('vault:refreshIndex', {})
     await page.getByTestId('ribbon-library').click()

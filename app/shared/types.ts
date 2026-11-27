@@ -1,8 +1,8 @@
-import type { ReasoningEffort, ResolvedReasoning } from './reasoning'
+import type { ResolvedReasoning } from './reasoning'
 import type { ContentRole, ContentScope } from './storage'
 import type { ContentSuggestion, SuggestionKind } from './pending'
 import type { MessagePart, ToolCall, TurnContext } from './assistant'
-import type { CompactionThreshold, ContextBudget, ModelBudgetOverrides } from './model-budget'
+import type { ContextBudget } from './model-budget'
 // 主进程与界面共用的数据类型。见 docs/architecture.md。
 
 export type DocType = 'idea' | 'log' | 'note' | 'file' | 'source-summary' | 'daily'
@@ -106,18 +106,10 @@ export interface VaultStatus {
   path?: string
 }
 
-export interface ModelSettings extends ModelBudgetOverrides {
-  protocol: import('./model-protocol').ModelProtocol
-  baseUrl: string
-  model: string
-  hasApiKey: boolean
-  reasoningEffort: ReasoningEffort
-}
-
 export type WindowCloseBehavior = 'tray' | 'quit'
 
 export interface Settings {
-  model: ModelSettings
+  models: import('./models').ModelCatalog
   classify: { enabled: boolean }
   capture: { hotkey: string; launchAtLogin: boolean }
   window: { closeBehavior: WindowCloseBehavior }
@@ -129,7 +121,7 @@ export interface Settings {
 
 /** 写入设置时的输入：密钥只能写入，不能读回 */
 export interface SettingsInput {
-  model?: { protocol?: import('./model-protocol').ModelProtocol; baseUrl?: string; model?: string; apiKey?: string; contextWindow?: number | null; compactionThreshold?: CompactionThreshold | null; reasoningEffort?: ReasoningEffort }
+  models?: import('./models').ModelCatalogInput
   classify?: Partial<Settings['classify']>
   capture?: Partial<Settings['capture']>
   window?: Partial<Settings['window']>
@@ -149,6 +141,7 @@ export type JobType = 'classify' | 'summarize-file' | 'daily' | 'reindex' | 'fin
 export type JobState = 'queued' | 'running' | 'waiting-model' | 'failed' | 'done' | 'cancelled'
 
 export interface AiExecution {
+  modelUse?: import('./models').ModelUse
   model: string
   skillId?: string
   reasoning?: ResolvedReasoning

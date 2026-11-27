@@ -16,7 +16,7 @@ const error = ref('')
 const tried = ref(false)
 
 const hotkey = computed(() => app.settings?.capture.hotkey ?? 'Ctrl+Alt+N')
-const modelReady = computed(() => !!app.settings?.model.baseUrl && !!app.settings.model.model)
+const modelReady = computed(() => !!app.settings?.models.defaultModelId)
 
 async function pick(): Promise<void> {
   const r = await call('vault:pick')
@@ -99,7 +99,9 @@ async function useVault(): Promise<void> {
   background: var(--bg-secondary);
 }
 .card {
-  width: 560px;
+  width:min(780px, calc(100vw - 32px));
+  max-height:calc(100dvh - 32px);
+  overflow:auto;
   padding: 32px;
   background: var(--bg-primary);
   border: 1px solid var(--border);

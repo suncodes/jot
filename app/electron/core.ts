@@ -93,7 +93,7 @@ export class Core {
     this.model = new ModelDiagnostics(() => this.settings.getModelConfig())
     this.content = new ContentService(this.vault, this.index, () => this.files.catalog(), () => this.state.isOpen ? this.classify.pendingPaths() : [])
     this.index.setContentQueries(this.content)
-    this.pi = new PiHost(path.join(opts.userDataDir, 'pi'), () => this.settings.getModelConfig(), (config, state, message) => this.model.report(config, state, message))
+    this.pi = new PiHost(path.join(opts.userDataDir, 'pi'), modelId => this.settings.getModelConfig(modelId), (config, state, message) => this.model.report(config, state, message))
     this.executor = new AiExecutor(this.pi, this.vault, this.index, operation => this.mutate(operation))
     this.classify = new ClassifyPipeline({
       vault: this.vault, index: this.index, state: this.state, executor: this.executor,
@@ -191,9 +191,6 @@ export class Core {
       if (modelChanged) this.agent.refreshReasoningSelections()
       opts.emit('model:status', { state: this.model.status() })
       this.jobs.kick()
-
-      // 外观和布局设置不影响在途回答，只有实际模型配置变化才重建会话。
-      if (modelChanged) void this.agent.reset()
     })
     this.vault.setLinkMaintainer(changes => this.links.maintain(changes))
     this.vault.on('changed', (changes) => {

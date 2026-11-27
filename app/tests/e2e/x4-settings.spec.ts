@@ -1,3 +1,5 @@
+import { defaultModel } from '../helpers/models'
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Page } from '@playwright/test'
@@ -72,7 +74,7 @@ test('X4：设置分类与搜索，原模型草稿、正文草稿、捕获和助
   await expect(page.getByTestId('settings-rebuild')).toBeVisible()
   await settings(page, 'model')
   await expect(page.getByTestId('model-name')).toHaveValue('未保存模型')
-  expect((await call('settings:get', undefined)).model.model).toBe('')
+  expect(defaultModel((await call('settings:get', undefined))).model).toBe('')
   await shot(page, 'x4-settings-model-light')
   await page.getByTestId('settings-back').click()
   await expect(editor).toContainText('X4不能丢失的未保存正文')
@@ -251,7 +253,7 @@ test('X4：设置暂时隐藏助手，进行中的回答继续，返回后保留
   const gate = new Promise<void>(resolve => { release = resolve })
   const fake = await startFakeLlm(agentScript([async () => { await gate; return 'X4设置期间也完成的回答' }]))
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'x4-fake', apiKey: 'fake' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'x4-fake', apiKey: 'fake' }, await call('settings:get', undefined)) })
     await page.keyboard.press('Control+l')
     await page.getByTestId('agent-input').fill('X4虚构请求')
     await page.getByTestId('agent-send').click()
@@ -267,7 +269,7 @@ test('X4：设置暂时隐藏助手，进行中的回答继续，返回后保留
     await expect(page.getByTestId('agent-stop')).toHaveCount(0)
     await settings(page, 'model')
     await expect(page.getByTestId('model-name')).toHaveValue('X4未保存的模型草稿')
-    expect((await call('settings:get', undefined)).model.model).toBe('x4-fake')
+    expect(defaultModel((await call('settings:get', undefined))).model).toBe('x4-fake')
   } finally { release(); await fake.close() }
 })
 

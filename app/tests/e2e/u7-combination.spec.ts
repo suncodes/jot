@@ -1,3 +1,5 @@
+import { defaultModel } from '../helpers/models'
+import { modelSettings } from '../helpers/models'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Page } from '@playwright/test'
@@ -29,7 +31,7 @@ test('U7单一助手、后台全局档位、独立整理确认、改名引用和
     () => '记录已保存，后台任务已安排，请查看实际结果。',
   ], background))
   try {
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, apiKey: 'fake', model: 'u7-model', reasoningEffort: 'high', contextWindow: 65536 }, classify: { enabled: true } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, apiKey: 'fake', model: 'u7-model', reasoningEffort: 'high', contextWindow: 65536 }, await call('settings:get', undefined)), classify: { enabled: true } })
     await page.keyboard.press('Control+l')
     await expect(page.getByTestId('agent-select')).toHaveText('通用助手')
     await selectOption(page, 'agent-reasoning-effort', 'low')
@@ -87,11 +89,11 @@ test('U7界面明确强度拒绝不降档，用户直接改为低档后重试成
   const fake = await startFakeLlm(() => ({ status: 400, body: '{"error":{"message":"unsupported reasoning_effort high"}}' }))
   try {
     write('content/工作/试用规则.md', '试用规则：先核对当前文件。'); await call('vault:refreshIndex', {})
-    await call('settings:set', { model: { baseUrl: fake.baseUrl, model: 'u7-model', apiKey: 'fake', reasoningEffort: 'high' } })
+    await call('settings:set', { ...modelSettings({ baseUrl: fake.baseUrl, model: 'u7-model', apiKey: 'fake', reasoningEffort: 'high' }, await call('settings:get', undefined)) })
     await page.keyboard.press('Control+l'); await ask(page, '核对试用规则', 1)
     await expect(page.getByTestId('agent-message-error')).toContainText('未自动降档')
     expect(fake.requests).toHaveLength(1)
-    expect((await call('settings:get', undefined)).model.reasoningEffort).toBe('high')
+    expect(defaultModel((await call('settings:get', undefined))).reasoningEffort).toBe('high')
     await selectOption(page, 'agent-reasoning-effort', 'low')
     fake.setResponder(agentScript([
       () => ({ toolCall: { name: 'read', arguments: { path: 'content/工作/试用规则.md' } } }),

@@ -47,7 +47,7 @@ function sourceHref(root: string, target: string, source: string): string | null
 function messageMarkdown(message: ChatMessage, index: number, root: string, target: string): string {
   const fields = ['## ' + (index + 1) + '. ' + (message.role === 'user' ? '用户' : '助手'), '', '时间：' + message.createdAt]
   if (message.context) {
-    fields.push('智能体：' + line(message.context.agent.name) + (message.context.model ? '；模型：' + line(message.context.model) : ''))
+    fields.push('智能体：' + line(message.context.agent.name) + (message.context.model ? '；模型：' + line((message.context.modelUse?.channelName ? message.context.modelUse.channelName + ' / ' : '') + (message.context.modelUse?.name || message.context.model)) : ''))
     if (message.context.skillIds.length) fields.push('显式技能：' + message.context.skillIds.map(line).join('、'))
     if (message.context.references.length) fields.push('范围：' + (message.context.strict ? '仅根据材料' : '参考材料') + '；' + message.context.references.map(item => line(item.value)).join('、'))
   }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { modelOptions, resolveModelSettings } from '@shared/models'
 import { t } from '@/strings'
 import { ArrowUp, ArrowUpRight, Bot, Check, ChevronDown, FileText, Folder, Plus, Search, Settings, Sparkles, Square, X } from 'lucide-vue-next'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
@@ -19,7 +20,19 @@ const emit = defineEmits<{ send: []; stop: []; add: [reference: MaterialReferenc
 const c = t.agent
 const cap = useCapabilitiesStore()
 const app = useAppStore()
-const reasoningModel = computed(() => app.settings && reasoningModelKey(app.settings.model))
+const selectedModel = computed(() => app.settings && resolveModelSettings(app.settings.models, props.context.modelId ?? app.settings.models.defaultModelId))
+const reasoningModel = computed(() => selectedModel.value ? reasoningModelKey(selectedModel.value) : '')
+const modelChoices = computed(() => {
+  if (!app.settings) return []
+  const actual = resolveModelSettings(app.settings.models)
+  const options = [{ value: 'follow', label: '跟随全局 · ' + (actual ? actual.channelName + ' / ' + (actual.name || actual.model) : '未配置') }, ...modelOptions(app.settings.models)]
+  if (props.context.modelId && !selectedModel.value) options.push({ value: props.context.modelId, label: '模型已删除，请重新选择' })
+  return options
+})
+const modelChoice = computed({ get: () => props.context.modelId ?? 'follow', set: value => {
+  const { modelId: _id, reasoningEffort: _effort, reasoningModel: _identity, ...context } = props.context
+  emit('context', { ...context, ...(value === 'follow' ? {} : { modelId: value }) })
+} })
 const reasoningEfforts = ref<readonly ReasoningEffort[]>(COMMON_REASONING_EFFORTS)
 const reasoningChoice = computed<ReasoningEffort | 'follow'>({
   get: () => props.context.reasoningEffort ?? 'follow',
@@ -187,7 +200,7 @@ watch([text, boundSkills], () => {
 watch(reasoningModel, (_value, _previous, cleanup) => {
   let active = true
   reasoningEfforts.value = COMMON_REASONING_EFFORTS
-  const model = app.settings?.model
+  const model = selectedModel.value
   if (!model) return
   void call('settings:reasoning', { baseUrl: model.baseUrl, model: model.model, protocol: model.protocol })
     .then(value => { if (active) reasoningEfforts.value = value.supported })
@@ -209,6 +222,7 @@ defineExpose({ focus: () => box.value?.focus() })
     <div class="composer" data-testid="agent-composer">
       <AssistantReferences :context :locked :automatic-reference @remove="emit('remove', $event)" @strict="strict" />
       <textarea ref="box" v-model="text" rows="2" data-testid="agent-input" :placeholder="c.inputPlaceholder" :aria-label="c.questionLabel" :aria-expanded="!!token" :aria-controls="token ? listId : undefined" :aria-activedescendant="token && options.length ? listId + '-' + active : undefined" maxlength="20000" autocomplete="off" spellcheck="false" @input="detect" @click="detect" @keyup.left="detect" @keyup.right="detect" @keydown="keyboard" />
+      <div class="composer-model-row"><AppSelect v-model="modelChoice" :options="modelChoices" label="对话模型" searchable :disabled="locked" data-testid="agent-model" @click="close()" /></div>
       <div class="composer-toolbar">
         <span v-if="!canChooseAgent" class="composer-choice agent-choice" :title="agent?.name" data-testid="agent-select" :data-value="agent?.id"><Bot :size="13" /><span>{{ agent?.name }}</span></span>
         <button v-else ref="agentTrigger" class="ghost composer-choice agent-choice" :title="agent?.name" :aria-label="c.chooseAgent" :aria-expanded="mode === 'agents'" :aria-controls="mode === 'agents' ? listId + '-popover' : undefined" aria-haspopup="dialog" :disabled="locked" data-testid="agent-select" @click="open('agents')"><Bot :size="13" /><span>{{ agent?.name || c.chooseAgent }}</span><ChevronDown :size="10" /></button>
@@ -239,3 +253,9 @@ defineExpose({ focus: () => box.value?.focus() })
     </section>
   </div>
 </template>
+
+<style scoped>
+.composer-model-row { min-width:0; border-top:1px solid var(--border); margin-top:var(--space-1); padding-top:var(--space-1); }
+.composer-model-row :deep(.select-control) { width:100%; max-width:100%; font-size:11px; min-height:28px; }
+.composer-model-row :deep(.select-control > span) { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+</style>

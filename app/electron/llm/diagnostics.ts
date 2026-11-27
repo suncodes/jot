@@ -24,13 +24,12 @@ export class ModelDiagnostics {
   }
   report(config: ModelConfig, state: ModelState, message?: string): void {
     const current = this.getConfig()
-    if (current?.baseUrl === config.baseUrl && current.model === config.model && current.apiKey === config.apiKey
+    if (current?.id === config.id && current?.baseUrl === config.baseUrl && current.model === config.model && current.apiKey === config.apiKey
       && (current.protocol ?? DEFAULT_MODEL_PROTOCOL) === (config.protocol ?? DEFAULT_MODEL_PROTOCOL)) this.setState(state, message)
   }
-  async test(pi: PiHost, cwd: string, override: Partial<ModelConfig> = {}): Promise<ModelTestResult> {
-    const base = this.getConfig()
+  async test(pi: PiHost, cwd: string, override: Partial<ModelConfig> = {}, base: ModelConfig | null = this.getConfig()): Promise<ModelTestResult> {
     const config: ModelConfig = { ...base, ...override, baseUrl: override.baseUrl || base?.baseUrl || '',
-      model: override.model || base?.model || '', apiKey: override.apiKey || base?.apiKey || '' }
+      model: override.model || base?.model || '', apiKey: override.apiKey ?? base?.apiKey ?? '' }
     if (!config.baseUrl || !config.model) return { ok: false, message: '请先填写接口地址和模型名' }
     const started = Date.now()
     let session: Awaited<ReturnType<PiHost['createSession']>> | undefined
