@@ -10,10 +10,10 @@ import ModelDiscoveryDialog from '@/components/ModelDiscoveryDialog.vue'
 import type { DiscoveredModel } from '@shared/model-discovery'
 import ModelProfileEditor from '@/components/ModelProfileEditor.vue'
 import { DEFAULT_MODEL_PROTOCOL, MODEL_PROTOCOLS } from '@shared/model-protocol'
-import { modelOptions, type ModelCatalogInput, type ModelProfile } from '@shared/models'
+import { MODEL_PROFILE_DEFAULTS, modelOptions, type ModelCatalogInput, type ModelProfile } from '@shared/models'
 
 const app = useAppStore()
-const emptyModel = (): ModelProfile => ({ id: crypto.randomUUID(), name: '', model: '', reasoningEffort: 'auto' })
+const emptyModel = (): ModelProfile => ({ id: crypto.randomUUID(), name: '', model: '', ...MODEL_PROFILE_DEFAULTS })
 function snapshot(): ModelCatalogInput {
   return { channels: (app.settings?.models.channels ?? []).map(({ hasApiKey: _key, ...channel }) => JSON.parse(JSON.stringify(channel))), defaultModelId: app.settings?.models.defaultModelId ?? null }
 }
@@ -60,7 +60,7 @@ function addDiscovered(models: DiscoveredModel[]): void {
   discovering.value = false
 }
 function connectionChanged(): void {
-  for (const model of channel.value?.models ?? []) { delete model.contextWindow; model.reasoningEffort = 'auto' }
+  for (const model of channel.value?.models ?? []) Object.assign(model, MODEL_PROFILE_DEFAULTS)
   result.value = null
 }
 function remove(): void {

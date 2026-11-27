@@ -6,7 +6,7 @@ import { test, expect, callOnPage } from './file-fixture'
 import { launch, shot, selectOption } from './helpers'
 import { agentScript, isAgentRequest, startFakeLlm } from '../helpers/fake-llm'
 
-test('窗口档位与压缩比例配置、精确输入校验、跨重启与恢复自动；最大输出由程序处理', async ({ jot }) => {
+test('窗口档位与压缩比例配置、精确输入校验、跨重启与恢复256K；最大输出由程序处理', async ({ jot }) => {
   const { page, call, launched } = jot
   const fake = await startFakeLlm(agentScript([() => '预算配置已生效']))
   let resumed: Awaited<ReturnType<typeof launch>> | undefined
@@ -19,13 +19,13 @@ test('窗口档位与压缩比例配置、精确输入校验、跨重启与恢�
     await page.getByTestId('model-api-key').fill('fake')
     await page.getByTestId('settings-nav-model').click()
     if (await page.getByTestId('model-advanced').getAttribute('open') === null) await page.getByTestId('model-advanced').locator('summary').click()
-    await expect(page.getByTestId('model-context-window')).toHaveAttribute('data-value', 'auto')
+    await expect(page.getByTestId('model-context-window')).toHaveAttribute('data-value', '262144')
     await expect(page.getByTestId('model-compaction-threshold')).toHaveAttribute('data-value', '0.7')
     await expect(page.getByTestId('model-max-output')).toHaveCount(0)
-    await expect(page.getByTestId('model-budget-preview')).toContainText('32,768 Token · 保守默认')
+    await expect(page.getByTestId('model-budget-preview')).toContainText('262,144 Token · 手动设置')
     await page.getByTestId('model-context-window').click()
     for (const label of ['8K', '16K', '32K', '64K', '128K', '200K', '256K', '512K', '1M', '2M']) {
-      await expect(page.getByTestId('select-options').getByRole('option', { name: new RegExp('^' + label + ' ·') })).toHaveCount(1)
+      await expect(page.getByTestId('select-options').getByRole('option', { name: new RegExp('^' + label + '$') })).toHaveCount(1)
     }
     await shot(page, 'model-window-options-light')
     await page.getByTestId('select-options').locator('[data-value="other"]').click()
@@ -50,12 +50,12 @@ test('窗口档位与压缩比例配置、精确输入校验、跨重启与恢�
     await page.getByTestId('agent-input').fill('说明上下文预算')
     await page.getByTestId('agent-send').click()
     await expect(page.getByTestId('agent-stop')).toHaveCount(0)
-    await expect(page.getByTestId('agent-context-budget')).toHaveAttribute('title', /窗口 16,384 Token.*预留输出 4,096/)
+    await expect(page.getByTestId('agent-context-budget')).toHaveAttribute('title', /窗口 16,384 Token.*预留输出 5,461/)
     const conversation = (await call('agent:conversations', {})).items[0]!.conversationId
     const saved = (await call('agent:get', { conversationId: conversation })).messages.at(-1)!.budget!
-    expect(saved).toMatchObject({ contextWindow: 16384, maxOutputTokens: 4096, compactionThreshold: 0.8, source: 'custom', blocked: false })
+    expect(saved).toMatchObject({ contextWindow: 16384, maxOutputTokens: 5461, compactionThreshold: 0.8, source: 'custom', blocked: false })
     const request = fake.requests.filter(isAgentRequest).at(-1)!
-    expect(request.max_tokens ?? request.max_completion_tokens).toBe(4096)
+    expect(request.max_tokens ?? request.max_completion_tokens).toBe(5461)
     await page.getByTestId('ribbon-settings').click()
     await page.getByTestId('theme-toggle').click()
     await page.setViewportSize({ width: 640, height: 800 })
@@ -78,31 +78,31 @@ test('窗口档位与压缩比例配置、精确输入校验、跨重启与恢�
     await next.getByTestId('model-context-custom').fill('128000')
     await next.getByTestId('model-save').click()
     expect(defaultModel((await callOnPage(next, 'settings:get', undefined))).contextWindow).toBe(128000)
-    await selectOption(next, 'model-context-window', 'auto')
+    await selectOption(next, 'model-context-window', '262144')
     await next.getByTestId('model-save').click()
-    await expect.poll(async () => defaultModel((await callOnPage(next, 'settings:get', undefined))).contextWindow).toBeUndefined()
-    await expect(next.getByTestId('model-budget-preview')).toContainText('32,768 Token · 保守默认')
+    await expect.poll(async () => defaultModel((await callOnPage(next, 'settings:get', undefined))).contextWindow).toBe(262144)
+    await expect(next.getByTestId('model-budget-preview')).toContainText('262,144 Token · 手动设置')
     await selectOption(next, 'model-compaction-threshold', '0.6')
     await next.getByTestId('model-save').click()
     await next.getByTestId('ribbon-settings').click()
     if (!(await next.getByTestId('agent').isVisible())) await next.keyboard.press('Control+l')
     await next.getByTestId('agent-history').click()
     await next.getByTestId('agent-conversation').first().locator('.history-main').click()
-    await next.getByTestId('agent-input').fill('使用自动预算继续')
+    await next.getByTestId('agent-input').fill('使用配置的窗口继续')
     await next.getByTestId('agent-send').click()
     await expect(next.getByTestId('agent-stop')).toHaveCount(0)
-    await expect(next.getByTestId('agent-context-budget')).toHaveAttribute('title', /窗口 32,768 Token.*保守默认/)
+    await expect(next.getByTestId('agent-context-budget')).toHaveAttribute('title', /窗口 262,144 Token.*手动设置/)
     expect((await callOnPage(next, 'agent:get', { conversationId: conversation })).messages.at(-1)?.budget?.compactionThreshold).toBe(0.6)
     await next.getByTestId('ribbon-settings').click()
     await next.getByTestId('settings-nav-model').click()
     if (await next.getByTestId('model-advanced').getAttribute('open') === null) await next.getByTestId('model-advanced').locator('summary').click()
     await selectOption(next, 'model-context-window', '8192')
     await next.getByTestId('model-name').fill('another-model')
-    await expect(next.getByTestId('model-context-window')).toHaveAttribute('data-value', 'auto')
+    await expect(next.getByTestId('model-context-window')).toHaveAttribute('data-value', '262144')
     await expect(next.getByTestId('model-compaction-threshold')).toHaveAttribute('data-value', '0.6')
     await next.getByTestId('model-save').click()
     expect(defaultModel((await callOnPage(next, 'settings:get', undefined)))).toMatchObject({ model: 'another-model', compactionThreshold: 0.6 })
-    expect(defaultModel((await callOnPage(next, 'settings:get', undefined)))).not.toHaveProperty('contextWindow')
+    expect(defaultModel((await callOnPage(next, 'settings:get', undefined))).contextWindow).toBe(262144)
   } finally { await resumed?.close(); await fake.close() }
 })
 

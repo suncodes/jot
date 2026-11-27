@@ -2,6 +2,9 @@ import type { ModelProtocol } from './model-protocol'
 import type { ModelBudgetOverrides } from './model-budget'
 import type { ReasoningEffort } from './reasoning'
 
+/** 新建及更换模型时的表单预选值；不代表服务端能力检测结果。 */
+export const MODEL_PROFILE_DEFAULTS = { reasoningEffort: 'high', contextWindow: 262144 } as const
+
 export interface ModelProfile extends ModelBudgetOverrides {
   id: string
   name: string

@@ -111,7 +111,9 @@ export async function inboxCount(page: Page): Promise<number> {
 /** 通过真实的定制下拉交互选择，不绕过组件状态。 */
 export async function selectOption(page: Page, testid: string, value: string): Promise<void> {
   await page.getByTestId(testid).click()
-  await page.getByTestId('select-options').locator('[data-value=' + JSON.stringify(value) + ']').click()
+  const options = testid === 'agent-model' ? 'agent-model-options' : testid === 'agent-reasoning-effort' ? 'agent-reasoning-options' : 'select-options'
+  await page.getByTestId(options).locator('[data-value=' + JSON.stringify(value) + ']').click()
+  if (testid === 'agent-model') await page.keyboard.press('Escape')
 }
 
 export async function fillDateTime(page: Page, testid: string, value: string): Promise<void> {

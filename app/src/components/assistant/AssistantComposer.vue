@@ -1,15 +1,12 @@
 <script setup lang="ts">
-import { modelOptions, resolveModelSettings } from '@shared/models'
 import { t } from '@/strings'
 import { ArrowUp, ArrowUpRight, Bot, Check, ChevronDown, FileText, Folder, Plus, Search, Settings, Sparkles, Square, X } from 'lucide-vue-next'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import type { ContextBudget } from '@shared/model-budget'
-import { reasoningModelKey, COMMON_REASONING_EFFORTS, type ReasoningEffort } from '@shared/reasoning'
-import { useAppStore } from '@/stores/app'
-import AppSelect from '@/components/AppSelect.vue'
 import type { AssistantContext, MaterialReference } from '@shared/assistant'
 import { call } from '@/api'
 import AssistantReferences from './AssistantReferences.vue'
+import AssistantModelPicker from './AssistantModelPicker.vue'
 import { useCapabilitiesStore } from '@/stores/capabilities'
 import { useEditorContextStore } from '@/stores/editorContext'
 import { CAPABILITIES_TAB, useTabsStore } from '@/stores/tabs'
@@ -19,35 +16,6 @@ const text = defineModel<string>({ required: true })
 const emit = defineEmits<{ send: []; stop: []; add: [reference: MaterialReference, replace: boolean]; remove: [index: number]; current: []; context: [value: AssistantContext] }>()
 const c = t.agent
 const cap = useCapabilitiesStore()
-const app = useAppStore()
-const selectedModel = computed(() => app.settings && resolveModelSettings(app.settings.models, props.context.modelId ?? app.settings.models.defaultModelId))
-const reasoningModel = computed(() => selectedModel.value ? reasoningModelKey(selectedModel.value) : '')
-const modelChoices = computed(() => {
-  if (!app.settings) return []
-  const actual = resolveModelSettings(app.settings.models)
-  const options = [{ value: 'follow', label: '跟随全局 · ' + (actual ? actual.channelName + ' / ' + (actual.name || actual.model) : '未配置') }, ...modelOptions(app.settings.models)]
-  if (props.context.modelId && !selectedModel.value) options.push({ value: props.context.modelId, label: '模型已删除，请重新选择' })
-  return options
-})
-const modelChoice = computed({ get: () => props.context.modelId ?? 'follow', set: value => {
-  const { modelId: _id, reasoningEffort: _effort, reasoningModel: _identity, ...context } = props.context
-  emit('context', { ...context, ...(value === 'follow' ? {} : { modelId: value }) })
-} })
-const reasoningEfforts = ref<readonly ReasoningEffort[]>(COMMON_REASONING_EFFORTS)
-const reasoningChoice = computed<ReasoningEffort | 'follow'>({
-  get: () => props.context.reasoningEffort ?? 'follow',
-  set: value => {
-    const { reasoningEffort: _effort, reasoningModel: _model, ...context } = props.context
-    emit('context', value === 'follow' ? context : {
-      ...context, reasoningEffort: value,
-      ...(reasoningModel.value ? { reasoningModel: reasoningModel.value } : {}),
-    })
-  },
-})
-const reasoningOptions = computed(() => [
-  { value: 'follow' as const, label: t.reasoning.default },
-  ...reasoningEfforts.value.filter(value => value !== 'auto').map(value => ({ value, label: t.reasoning.labels[value] })),
-])
 const editor = useEditorContextStore()
 const tabs = useTabsStore()
 const area = ref<HTMLElement | null>(null)
@@ -197,16 +165,6 @@ watch([text, boundSkills], () => {
   const skillIds = boundSkills.value.filter(s => commands.has(s.id) || commands.has(s.name) && boundSkills.value.filter(other => other.name === s.name).length === 1).map(s => s.id)
   if (skillIds.join('\0') !== props.context.skillIds.join('\0')) emit('context', { ...props.context, skillIds })
 })
-watch(reasoningModel, (_value, _previous, cleanup) => {
-  let active = true
-  reasoningEfforts.value = COMMON_REASONING_EFFORTS
-  const model = selectedModel.value
-  if (!model) return
-  void call('settings:reasoning', { baseUrl: model.baseUrl, model: model.model, protocol: model.protocol })
-    .then(value => { if (active) reasoningEfforts.value = value.supported })
-    .catch(error => { if (active) console.error('[assistant] 读取推理档位失败：', error) })
-  cleanup(() => { active = false })
-}, { immediate: true })
 watch(locked, value => { if (value) close() })
 watch(() => props.context, () => { dismissedCurrent.value = '' })
 onMounted(() => { fit(); document.addEventListener('pointerdown', outside, true); document.addEventListener('focusin', outside); window.addEventListener('keydown', escape, true); window.addEventListener('resize', measure) })
@@ -222,12 +180,11 @@ defineExpose({ focus: () => box.value?.focus() })
     <div class="composer" data-testid="agent-composer">
       <AssistantReferences :context :locked :automatic-reference @remove="emit('remove', $event)" @strict="strict" />
       <textarea ref="box" v-model="text" rows="2" data-testid="agent-input" :placeholder="c.inputPlaceholder" :aria-label="c.questionLabel" :aria-expanded="!!token" :aria-controls="token ? listId : undefined" :aria-activedescendant="token && options.length ? listId + '-' + active : undefined" maxlength="20000" autocomplete="off" spellcheck="false" @input="detect" @click="detect" @keyup.left="detect" @keyup.right="detect" @keydown="keyboard" />
-      <div class="composer-model-row"><AppSelect v-model="modelChoice" :options="modelChoices" label="对话模型" searchable :disabled="locked" data-testid="agent-model" @click="close()" /></div>
       <div class="composer-toolbar">
         <span v-if="!canChooseAgent" class="composer-choice agent-choice" :title="agent?.name" data-testid="agent-select" :data-value="agent?.id"><Bot :size="13" /><span>{{ agent?.name }}</span></span>
         <button v-else ref="agentTrigger" class="ghost composer-choice agent-choice" :title="agent?.name" :aria-label="c.chooseAgent" :aria-expanded="mode === 'agents'" :aria-controls="mode === 'agents' ? listId + '-popover' : undefined" aria-haspopup="dialog" :disabled="locked" data-testid="agent-select" @click="open('agents')"><Bot :size="13" /><span>{{ agent?.name || c.chooseAgent }}</span><ChevronDown :size="10" /></button>
         <button ref="referenceTrigger" class="ghost composer-choice reference-choice" :title="c.mentionTitle" :aria-label="c.mention" :aria-expanded="mode === 'references'" :aria-controls="mode === 'references' ? listId + '-popover' : undefined" aria-haspopup="dialog" :disabled="locked" data-testid="agent-mention" @click="open('references')"><span class="at-symbol" aria-hidden="true">@</span><span>{{ c.addReference }}</span></button>
-        <div class="composer-choice reasoning-choice"><span>{{ t.reasoning.shortTitle }}</span><AppSelect :key="reasoningModel ?? ''" v-model="reasoningChoice" :options="reasoningOptions" :label="t.reasoning.title" data-testid="agent-reasoning-effort" @click="close()" /></div>
+        <AssistantModelPicker :context :busy :loading @context="emit('context', $event)" @open="close()" />
         <button v-if="busy" class="send-button running" :title="c.stopGenerate" :aria-label="c.stopGenerate" data-testid="agent-stop" @click="emit('stop')"><Square :size="13" /></button>
         <button v-else class="send-button" :title="c.send" :aria-label="c.send" data-testid="agent-send" :disabled="!canSend" @click="emit('send')"><ArrowUp :size="16" /></button>
       </div>
@@ -253,9 +210,3 @@ defineExpose({ focus: () => box.value?.focus() })
     </section>
   </div>
 </template>
-
-<style scoped>
-.composer-model-row { min-width:0; border-top:1px solid var(--border); margin-top:var(--space-1); padding-top:var(--space-1); }
-.composer-model-row :deep(.select-control) { width:100%; max-width:100%; font-size:11px; min-height:28px; }
-.composer-model-row :deep(.select-control > span) { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-</style>

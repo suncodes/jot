@@ -125,8 +125,6 @@
 .agent-panel-content .composer-choice > svg:last-child { width: 10px; height: 10px; }
 .agent-panel-content .agent-choice { color: var(--text-normal); }
 .agent-panel-content .agent-choice > svg:first-child { color: var(--accent); }
-.agent-panel-content .reasoning-choice { flex: 0 0 auto; max-width: none; gap: 2px; padding: 0 4px; color: var(--text-normal); }
-.agent-panel-content .reasoning-choice .select-control { width: auto; min-height: 26px; padding: 4px; gap: 4px; border: 0; background: transparent; font-size: 11px; }
 .agent-panel-content .send-button { width: 29px; height: 29px; border-radius: 8px; display: grid; place-items: center; margin-left: auto; background: var(--accent); color: var(--bg-primary); flex: 0 0 auto; }
 :root[data-theme="dark"] .agent-panel-content .send-button { color: #19142d; }
 .agent-panel-content .send-button:hover:not(:disabled) { background: var(--accent-hover); }

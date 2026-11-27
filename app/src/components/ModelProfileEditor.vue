@@ -4,7 +4,7 @@ import { call } from '@/api'
 import { t } from '@/strings'
 import AppSelect from '@/components/AppSelect.vue'
 import type { ModelEndpoint } from '@shared/model-protocol'
-import type { ModelProfile } from '@shared/models'
+import { MODEL_PROFILE_DEFAULTS, type ModelProfile } from '@shared/models'
 import { COMMON_REASONING_EFFORTS, type ResolvedReasoning } from '@shared/reasoning'
 import { COMPACTION_THRESHOLDS, CONTEXT_WINDOW_PRESETS, DEFAULT_COMPACTION_THRESHOLD, MODEL_BUDGET_BOUNDS, type CompactionThreshold, type ResolvedModelBudget } from '@shared/model-budget'
 
@@ -12,19 +12,25 @@ const profile = defineModel<ModelProfile>({ required: true })
 const { endpoint } = defineProps<{ endpoint: ModelEndpoint }>()
 const reasoning = ref<ResolvedReasoning | null>(null), preview = ref<ResolvedModelBudget | null>(null)
 const error = ref('')
-const windowChoice = ref(profile.value.contextWindow === undefined ? 'auto' : CONTEXT_WINDOW_PRESETS.some(item => item.tokens === profile.value.contextWindow) ? String(profile.value.contextWindow) : 'other')
-const options = [{ value: 'auto', label: t.settings.budgetAuto }, ...CONTEXT_WINDOW_PRESETS.map(item => ({ value: String(item.tokens), label: item.label })), { value: 'other', label: t.settings.budgetOther }]
+profile.value.contextWindow ??= MODEL_PROFILE_DEFAULTS.contextWindow
+const windowChoice = ref(CONTEXT_WINDOW_PRESETS.some(item => item.tokens === profile.value.contextWindow) ? String(profile.value.contextWindow) : 'other')
+const options = [...CONTEXT_WINDOW_PRESETS.map(item => ({ value: String(item.tokens), label: item.label })), { value: 'other', label: t.settings.budgetOther }]
 const threshold = computed({ get: () => String(profile.value.compactionThreshold ?? DEFAULT_COMPACTION_THRESHOLD), set: value => { profile.value.compactionThreshold = Number(value) as CompactionThreshold } })
 const effortOptions = computed(() => (reasoning.value?.supported ?? COMMON_REASONING_EFFORTS).map(value => ({ value, label: t.reasoning.labels[value] })))
-watch([() => profile.value.model, () => endpoint.baseUrl, () => endpoint.protocol], () => { delete profile.value.contextWindow; profile.value.reasoningEffort = 'auto'; windowChoice.value = 'auto' })
-watch(windowChoice, value => { if (value === 'auto') delete profile.value.contextWindow; else if (value !== 'other') profile.value.contextWindow = Number(value) })
+watch([() => profile.value.model, () => endpoint.baseUrl, () => endpoint.protocol], () => {
+  Object.assign(profile.value, MODEL_PROFILE_DEFAULTS); windowChoice.value = String(MODEL_PROFILE_DEFAULTS.contextWindow)
+})
+watch(windowChoice, value => { if (value !== 'other') profile.value.contextWindow = Number(value) })
 watch(() => [endpoint.baseUrl, endpoint.protocol, profile.value.model, profile.value.contextWindow, profile.value.compactionThreshold, profile.value.reasoningEffort], (_value, _old, cleanup) => {
   let active = true
   const timer = setTimeout(async () => {
     try {
       const config = { baseUrl: endpoint.baseUrl, protocol: endpoint.protocol, model: profile.value.model, contextWindow: profile.value.contextWindow, compactionThreshold: profile.value.compactionThreshold, reasoningEffort: profile.value.reasoningEffort }
       const [limits, efforts] = await Promise.all([call('settings:modelBudget', config), call('settings:reasoning', { baseUrl: config.baseUrl, protocol: config.protocol, model: config.model })])
-      if (active) { preview.value = limits; reasoning.value = efforts; error.value = '' }
+      if (active) {
+        preview.value = limits; reasoning.value = efforts; error.value = ''
+        if (efforts.supported.length === 1 && efforts.supported[0] === 'auto') profile.value.reasoningEffort = 'auto'
+      }
     } catch (cause) { if (active) error.value = (cause as Error).message }
   }, 180)
   cleanup(() => { active = false; clearTimeout(timer) })
@@ -38,7 +44,7 @@ watch(() => [endpoint.baseUrl, endpoint.protocol, profile.value.model, profile.v
       <summary>{{ t.settings.modelAdvanced }}</summary>
       <div class="model-field"><span>{{ t.reasoning.title }}</span><AppSelect v-model="profile.reasoningEffort" :options="effortOptions" :label="t.reasoning.title" data-testid="model-reasoning-effort" /></div>
       <p class="small muted">{{ t.reasoning.hint }}</p>
-      <p v-if="reasoning?.availability === 'unverified'" class="small muted">{{ t.reasoning.unverified }}</p>
+      <p v-if="reasoning?.availability === 'unverified'" class="small muted" data-testid="model-reasoning-unverified">{{ t.reasoning.unverified }}</p>
       <div class="model-field"><span>{{ t.settings.contextWindow }}</span><AppSelect v-model="windowChoice" :options :label="t.settings.contextWindow" data-testid="model-context-window" /></div>
       <label v-if="windowChoice === 'other'"><span>{{ t.settings.contextExact }}</span><input v-model.number="profile.contextWindow" type="number" :min="MODEL_BUDGET_BOUNDS.contextWindow.min" :max="MODEL_BUDGET_BOUNDS.contextWindow.max" data-testid="model-context-custom" /></label>
       <p v-if="preview" class="small muted" data-testid="model-budget-preview">{{ t.settings.resolvedWindow(preview.contextWindow, t.agent.contextSources[preview.source]) }}</p>
